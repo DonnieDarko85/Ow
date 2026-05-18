@@ -1,14 +1,14 @@
 import type { AppConfig, Army, MatchSummary, Territory, UserProfile } from '@/types';
 
 export const appConfig: AppConfig = {
-  appName: 'Old World Campaign Portal',
+  appName: 'Old World Federation Play Portal',
   appVersion: '0.1.0-alpha',
-  organizationName: 'Federazione Wargame Placeholder',
-  legalNote: 'Portale dimostrativo per gestione campagne. Inserire qui titolarita, termini d uso e note legali definitive.',
+  organizationName: 'Old World Federation',
+  legalNote: 'Community portal dedicato al gioco organizzato di Warhammer: The Old World. Aggiornare privacy, termini e note legali definitive prima della pubblicazione.',
   privacyUrl: '#privacy',
   legalUrl: '#legal',
   cookieUrl: '#cookie',
-  contactEmail: 'federazione@example.org',
+  contactEmail: 'play@oldworldfederation.com',
 };
 
 export const armies: Army[] = [
@@ -148,4 +148,3 @@ export const recentMatches: MatchSummary[] = [
     status: 'PENDING',
   },
 ];
-

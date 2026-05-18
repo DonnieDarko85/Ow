@@ -8,6 +8,7 @@
         v-model="email" 
         type="text" 
         placeholder="player@example.com" 
+        autocomplete="username"
         required
       />
     </label>
@@ -17,6 +18,7 @@
         v-model="password" 
         type="password" 
         placeholder="••••••••" 
+        autocomplete="current-password"
         required
       />
     </label>
@@ -60,4 +62,3 @@ const handleSubmit = async () => {
   }
 };
 </script>
-

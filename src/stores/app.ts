@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { api } from '@/services/api';
-import type { AppConfig, Army, MatchSummary, Territory, UserProfile } from '@/types';
+import type { AppConfig, Army, MatchSummary, RegisterPayload, Territory, UserProfile } from '@/types';
 
 interface AppState {
   config: AppConfig | null;
@@ -9,7 +9,11 @@ interface AppState {
   territories: Territory[];
   recentMatches: MatchSummary[];
   isLoading: boolean;
+  hasBootstrapped: boolean;
+  bootstrapErrors: string[];
 }
+
+let bootstrapPromise: Promise<void> | null = null;
 
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
@@ -19,6 +23,8 @@ export const useAppStore = defineStore('app', {
     territories: [],
     recentMatches: [],
     isLoading: false,
+    hasBootstrapped: false,
+    bootstrapErrors: [],
   }),
   getters: {
     isAuthenticated: (state) => state.user !== null,
@@ -28,9 +34,10 @@ export const useAppStore = defineStore('app', {
   actions: {
     async bootstrap() {
       this.isLoading = true;
+      this.bootstrapErrors = [];
 
       try {
-        const [config, user, armies, territories, recentMatches] = await Promise.all([
+        const results = await Promise.allSettled([
           api.getConfig(),
           api.getCurrentUser(),
           api.getArmies(),
@@ -38,14 +45,58 @@ export const useAppStore = defineStore('app', {
           api.getRecentMatches(),
         ]);
 
-        this.config = config;
-        this.user = user;
-        this.armies = armies;
-        this.territories = territories;
-        this.recentMatches = recentMatches;
+        const [configResult, userResult, armiesResult, territoriesResult, recentMatchesResult] = results;
+
+        if (configResult.status === 'fulfilled') {
+          this.config = configResult.value;
+        } else {
+          this.bootstrapErrors.push('config');
+        }
+
+        if (userResult.status === 'fulfilled') {
+          this.user = userResult.value;
+        } else {
+          this.user = null;
+          this.bootstrapErrors.push('me');
+        }
+
+        if (armiesResult.status === 'fulfilled') {
+          this.armies = armiesResult.value;
+        } else {
+          this.armies = [];
+          this.bootstrapErrors.push('armies');
+        }
+
+        if (territoriesResult.status === 'fulfilled') {
+          this.territories = territoriesResult.value;
+        } else {
+          this.territories = [];
+          this.bootstrapErrors.push('territories');
+        }
+
+        if (recentMatchesResult.status === 'fulfilled') {
+          this.recentMatches = recentMatchesResult.value;
+        } else {
+          this.recentMatches = [];
+          this.bootstrapErrors.push('matches');
+        }
       } finally {
+        this.hasBootstrapped = true;
         this.isLoading = false;
       }
+    },
+    async ensureBootstrapped() {
+      if (this.hasBootstrapped) {
+        return;
+      }
+
+      if (!bootstrapPromise) {
+        bootstrapPromise = this.bootstrap().finally(() => {
+          bootstrapPromise = null;
+        });
+      }
+
+      await bootstrapPromise;
     },
     async login(email: string, password: string) {
       this.isLoading = true;
@@ -53,6 +104,16 @@ export const useAppStore = defineStore('app', {
         const user = await api.login(email, password);
         this.user = user;
         return user;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async register(payload: RegisterPayload) {
+      this.isLoading = true;
+      try {
+        const result = await api.register(payload);
+        this.user = result.user;
+        return result;
       } finally {
         this.isLoading = false;
       }
@@ -65,4 +126,3 @@ export const useAppStore = defineStore('app', {
     },
   },
 });
-

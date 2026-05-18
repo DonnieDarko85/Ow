@@ -2,10 +2,10 @@
   <div class="app-shell">
     <aside class="shell-sidebar">
       <div class="brand-card">
-        <div class="brand-mark">OW</div>
+        <div class="brand-mark">OWF</div>
         <div>
-          <p class="eyebrow">Campaign Command</p>
-          <h1>{{ config?.appName ?? 'Old World Campaign Portal' }}</h1>
+          <p class="eyebrow">Official Play Portal</p>
+          <h1>{{ config?.appName ?? 'Old World Federation Play Portal' }}</h1>
         </div>
       </div>
 
@@ -16,12 +16,12 @@
       </nav>
 
       <section class="guild-card">
-        <p class="eyebrow">Federazione / Associazione</p>
+        <p class="eyebrow">Old World Federation</p>
         <div class="guild-logo-placeholder">
-          <span>Logo Federazione</span>
+          <span>OWF Logo Area</span>
         </div>
         <p class="muted-copy">
-          Area pronta per stemma ufficiale, patrocinio o marchio evento.
+          Area pronta per logo ufficiale federazione, partner o marchio evento.
         </p>
       </section>
     </aside>
@@ -36,8 +36,12 @@
           <div class="avatar-placeholder">{{ initials }}</div>
           <div>
             <strong>{{ user?.nickname ?? 'Comandante' }}</strong>
-            <p class="muted-copy">Profilo operativo</p>
+            <p class="muted-copy">{{ user ? 'Profilo operativo' : 'Accesso non effettuato' }}</p>
           </div>
+        </div>
+        <div v-if="!user" class="topbar-actions">
+          <RouterLink class="topbar-link" to="/auth/login">Login</RouterLink>
+          <RouterLink class="topbar-link accent" to="/auth/register">Registrati</RouterLink>
         </div>
       </header>
 
@@ -80,12 +84,22 @@ import { useAppStore } from '@/stores/app';
 const appStore = useAppStore();
 const { config, user } = storeToRefs(appStore);
 
-const navItems = [
-  { label: 'Mappa e territori', short: 'Mappa', to: '/' },
-  { label: 'Inserisci risultato', short: 'Esito', to: '/submit-result' },
-  { label: 'I miei risultati', short: 'Storico', to: '/results' },
-  { label: 'Profilo', short: 'Profilo', to: '/profile' },
-];
+const navItems = computed(() => {
+  if (!user.value) {
+    return [
+      { label: 'Mappa e territori', short: 'Mappa', to: '/' },
+      { label: 'Accedi', short: 'Login', to: '/auth/login' },
+      { label: 'Registrati', short: 'Join', to: '/auth/register' },
+    ];
+  }
+
+  return [
+    { label: 'Mappa e territori', short: 'Mappa', to: '/' },
+    { label: 'Inserisci risultato', short: 'Esito', to: '/submit-result' },
+    { label: 'I miei risultati', short: 'Storico', to: '/results' },
+    { label: 'Profilo', short: 'Profilo', to: '/profile' },
+  ];
+});
 
 const initials = computed(() => {
   const nickname = user.value?.nickname ?? 'OW';
@@ -93,9 +107,8 @@ const initials = computed(() => {
 });
 
 onMounted(async () => {
-  if (!config.value) {
-    await appStore.bootstrap();
+  if (!appStore.hasBootstrapped) {
+    await appStore.ensureBootstrapped();
   }
 });
 </script>
-

@@ -10,11 +10,11 @@ return [
         'charset' => 'utf8mb4',
     ],
     'app' => [
-        'name' => 'Old World Campaign Portal',
+        'name' => 'Old World Federation Play Portal',
         'version' => '0.1.0-alpha',
-        'organization_name' => 'Federazione Wargame Placeholder',
+        'organization_name' => 'Old World Federation',
         'legal_note' => 'Aggiornare con note legali definitive, privacy e contatti ufficiali.',
-        'contact_email' => 'federazione@example.org',
+        'contact_email' => 'play@oldworldfederation.com',
+        'registration_mail_from' => 'play@oldworldfederation.com',
     ],
 ];
-

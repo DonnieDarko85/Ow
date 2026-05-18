@@ -9,8 +9,8 @@
         </p>
       </div>
       <div class="hero-side">
-        <div class="logo-placeholder large">Logo App / Evento</div>
-        <div class="logo-placeholder large">Banner campagna</div>
+        <div class="logo-placeholder large">Old World Federation Play</div>
+        <div class="logo-placeholder large">Banner circuito / campagna</div>
       </div>
     </section>
 
@@ -40,15 +40,28 @@
           description="Scorciatoie per i flussi piu frequenti nel portale."
         />
         <div class="quick-actions">
-          <RouterLink to="/submit-result" class="action-card">
-            Inserisci risultato
-          </RouterLink>
-          <RouterLink to="/results" class="action-card">
-            Controlla stato conferme
-          </RouterLink>
-          <RouterLink to="/profile" class="action-card">
-            Aggiorna profilo e branding
-          </RouterLink>
+          <template v-if="isAuthenticated">
+            <RouterLink to="/submit-result" class="action-card">
+              Inserisci risultato
+            </RouterLink>
+            <RouterLink to="/results" class="action-card">
+              Controlla stato conferme
+            </RouterLink>
+            <RouterLink to="/profile" class="action-card">
+              Aggiorna profilo e branding
+            </RouterLink>
+          </template>
+          <template v-else>
+            <RouterLink to="/auth/login" class="action-card">
+              Accedi per inserire risultati
+            </RouterLink>
+            <RouterLink to="/auth/register" class="action-card">
+              Crea un account giocatore
+            </RouterLink>
+            <div class="action-card static-card">
+              Consulta mappa e territori anche senza login
+            </div>
+          </template>
         </div>
       </div>
     </section>
@@ -69,6 +82,7 @@ import { useAppStore } from '@/stores/app';
 const appStore = useAppStore();
 const { recentMatches, territories } = storeToRefs(appStore);
 const { factionLabel } = useTheme();
+const isAuthenticated = computed(() => appStore.isAuthenticated);
 
 const confirmedBattles = computed(() =>
   territories.value.reduce((sum, territory) => sum + territory.stats.confirmedBattles, 0),
@@ -83,4 +97,3 @@ const leadingFaction = computed(() => {
   return firstTerritory ? factionLabel(firstTerritory.stats.dominantFaction) : 'N/D';
 });
 </script>
-

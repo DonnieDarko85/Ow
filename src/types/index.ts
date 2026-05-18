@@ -17,6 +17,11 @@ export interface UserProfile {
   preferredFaction?: Faction;
 }
 
+export interface UserLookup {
+  id: string;
+  nickname: string;
+}
+
 export interface TerritoryStats {
   confirmedBattles: number;
   pendingBattles: number;
@@ -79,3 +84,19 @@ export interface AppConfig {
   contactEmail: string;
 }
 
+export interface RegisterPayload {
+  nickname: string;
+  email: string;
+  password: string;
+  passwordConfirmation: string;
+}
+
+export interface AuthResult {
+  user: UserProfile;
+  message: string;
+  emailStatus?: 'sent' | 'failed' | 'skipped';
+}
+
+export interface MeResult {
+  user: UserProfile | null;
+}

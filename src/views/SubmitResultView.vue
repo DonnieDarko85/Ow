@@ -22,7 +22,7 @@
           <span>Armata</span>
           <select v-model="form.ownArmyId" required>
             <option value="" disabled>Seleziona una armata</option>
-            <option v-for="army in armies" :key="army.id" :value="army.id">
+            <option v-for="army in sortedArmies" :key="army.id" :value="army.id">
               {{ army.name }}
             </option>
           </select>
@@ -39,7 +39,22 @@
 
         <label>
           <span>Nickname avversario</span>
-          <input v-model="form.opponentNickname" type="text" placeholder="Es. SkullRider" required />
+          <input
+            v-model.trim="opponentSearch"
+            type="text"
+            placeholder="Cerca nickname avversario"
+            autocomplete="off"
+          />
+          <select v-model="form.opponentNickname" required>
+            <option value="" disabled>Seleziona un avversario</option>
+            <option
+              v-for="opponent in filteredOpponents"
+              :key="opponent.id"
+              :value="opponent.nickname"
+            >
+              {{ opponent.nickname }}
+            </option>
+          </select>
         </label>
 
         <label>
@@ -65,6 +80,7 @@
         <button class="primary-button full-span" :disabled="isSubmitting" type="submit">
           {{ isSubmitting ? 'Invio in corso...' : 'Invia risultato' }}
         </button>
+        <p v-if="loadError" class="field-error full-span">{{ loadError }}</p>
       </form>
 
       <aside class="panel-card callout-card">
@@ -83,17 +99,20 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import SectionHeader from '@/components/SectionHeader.vue';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
-import type { SubmitResultPayload } from '@/types';
+import type { SubmitResultPayload, UserLookup } from '@/types';
 
 const appStore = useAppStore();
 const { armies, territories, user } = storeToRefs(appStore);
 const isSubmitting = ref(false);
 const submitMessage = ref('');
+const loadError = ref('');
+const opponents = ref<UserLookup[]>([]);
+const opponentSearch = ref('');
 
 const form = reactive<SubmitResultPayload>({
   territoryId: '',
@@ -104,6 +123,56 @@ const form = reactive<SubmitResultPayload>({
   opponentScore: 0,
   playedAt: new Date().toISOString().slice(0, 10),
   note: '',
+});
+
+const sortedArmies = computed(() =>
+  [...armies.value].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
+);
+
+const availableOpponents = computed(() =>
+  opponents.value
+    .filter((opponent) => opponent.nickname !== user.value?.nickname)
+    .sort((a, b) => a.nickname.localeCompare(b.nickname, 'it', { sensitivity: 'base' })),
+);
+
+const filteredOpponents = computed(() => {
+  const query = opponentSearch.value.trim().toLowerCase();
+
+  if (!query) {
+    return availableOpponents.value;
+  }
+
+  return availableOpponents.value.filter((opponent) =>
+    opponent.nickname.toLowerCase().includes(query),
+  );
+});
+
+const hasLookupData = computed(() =>
+  sortedArmies.value.length > 0 && territories.value.length > 0 && availableOpponents.value.length > 0,
+);
+
+onMounted(async () => {
+  if (!appStore.hasBootstrapped) {
+    await appStore.ensureBootstrapped();
+  }
+
+  try {
+    opponents.value = await api.getUsers();
+  } catch (error) {
+    loadError.value = 'Non sono riuscito a caricare la lista avversari dal server.';
+  }
+
+  if (!hasLookupData.value) {
+    loadError.value = 'Non sono riuscito a caricare armate, territori o lista avversari dal server. Verifica gli endpoint /armies, /territories e /users.';
+  } else {
+    if (!loadError.value) {
+      loadError.value = '';
+    }
+
+    if (!form.ownArmyId && sortedArmies.value[0]) {
+      form.ownArmyId = sortedArmies.value[0].id;
+    }
+  }
 });
 
 async function handleSubmit() {
@@ -118,4 +187,3 @@ async function handleSubmit() {
   }
 }
 </script>
-

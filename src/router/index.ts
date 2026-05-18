@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory } from 'vue-router';
 import AppShell from '@/layouts/AppShell.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import DashboardView from '@/views/DashboardView.vue';
@@ -12,12 +12,11 @@ import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
 import { useAppStore } from '@/stores/app';
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/',
       component: AppShell,
-      meta: { requiresAuth: true },
       children: [
         {
           path: '',
@@ -33,16 +32,19 @@ const router = createRouter({
           path: 'submit-result',
           name: 'submit-result',
           component: SubmitResultView,
+          meta: { requiresAuth: true },
         },
         {
           path: 'results',
           name: 'results',
           component: ResultsView,
+          meta: { requiresAuth: true },
         },
         {
           path: 'profile',
           name: 'profile',
           component: ProfileView,
+          meta: { requiresAuth: true },
         },
       ],
     },
@@ -70,15 +72,14 @@ const router = createRouter({
   ],
 });
 
-// Route guard per proteggere le rotte che richiedono autenticazione
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const appStore = useAppStore();
-  
-  if (to.meta.requiresAuth && !appStore.isAuthenticated) {
-    // Se la rotta richiede autenticazione e l'utente non è autenticato, reindirizza a login
+
+  await appStore.ensureBootstrapped();
+
+  if (to.matched.some((record) => record.meta.requiresAuth) && !appStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
   } else if (to.name === 'login' && appStore.isAuthenticated) {
-    // Se l'utente è già autenticato e tenta di andare a login, reindirizza a dashboard
     next({ name: 'dashboard' });
   } else {
     next();
@@ -86,4 +87,3 @@ router.beforeEach((to, from, next) => {
 });
 
 export default router;
-
