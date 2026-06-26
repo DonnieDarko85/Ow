@@ -3,7 +3,7 @@
     <SectionHeader
       eyebrow="Profilo utente"
       title="Account, avatar e preferenze"
-      description="Area predisposta per aggiornamento email, avatar, armata preferita e contenuti branding."
+      description="Area predisposta per avatar, armata preferita, preferenze visuali e contenuti branding."
     />
 
     <section class="content-grid two-columns">
@@ -12,15 +12,11 @@
           <div class="avatar-large">{{ initials }}</div>
           <div>
             <h3>{{ user?.nickname }}</h3>
-            <p class="muted-copy">{{ user?.email }}</p>
+            <p class="muted-copy">Dati sensibili nascosti lato interfaccia.</p>
           </div>
         </div>
 
         <div class="profile-grid">
-          <label>
-            <span>Email</span>
-            <input type="email" :value="user?.email" />
-          </label>
           <label>
             <span>Armata preferita</span>
             <select :value="user?.preferredArmyId">

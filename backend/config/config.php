@@ -16,5 +16,6 @@ return [
         'legal_note' => 'Aggiornare con note legali definitive, privacy e contatti ufficiali.',
         'contact_email' => 'play@suntzusecrets.com',
         'registration_mail_from' => 'play@suntzusecrets.com',
+        'data_encryption_key' => 'change-me-with-a-long-random-secret',
     ],
 ];

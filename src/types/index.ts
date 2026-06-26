@@ -20,7 +20,7 @@ export interface Army {
 export interface UserProfile {
   id: string;
   nickname: string;
-  email: string;
+  email?: string;
   role: UserRole;
   avatarUrl?: string;
   preferredArmyId?: string;
@@ -103,6 +103,41 @@ export interface PendingOwnMatch {
   note: string;
   createdAt: string;
   status: 'PENDING';
+}
+
+export interface AdminUserRecord {
+  id: string;
+  nickname: string;
+  role: UserRole;
+  isActive: boolean;
+  preferredArmyId?: string | null;
+  preferredFaction?: Faction | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminMatchRecord {
+  id: string;
+  territoryId: string;
+  territoryName: string;
+  status: MatchStatus;
+  playedAt?: string | null;
+  playerAId: string;
+  playerAName: string;
+  playerBId: string;
+  playerBName: string;
+  armyAId?: string | null;
+  armyAName?: string | null;
+  factionA?: Faction | null;
+  armyBId?: string | null;
+  armyBName?: string | null;
+  factionB?: Faction | null;
+  victoryPointsA: number;
+  victoryPointsB: number;
+  matchPointsA?: number | null;
+  matchPointsB?: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SubmitResultPayload {

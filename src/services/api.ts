@@ -1,5 +1,5 @@
 import { appConfig, armies, currentUser, factions, recentMatches, territories } from '@/mocks/data';
-import type { AppConfig, Army, AuthResult, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
+import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const apiBaseUrls = configuredApiBaseUrl
@@ -192,5 +192,23 @@ export const api = {
 
     const result = await request<UserLookup[]>('/users');
     return [...result].sort((a, b) => a.nickname.localeCompare(b.nickname, 'it', { sensitivity: 'base' }));
+  },
+  async getAdminUsers(): Promise<AdminUserRecord[]> {
+    return request<AdminUserRecord[]>('/admin/users');
+  },
+  async updateAdminUser(userId: string, payload: Partial<AdminUserRecord>): Promise<{ message: string; user: AdminUserRecord }> {
+    return request<{ message: string; user: AdminUserRecord }>(`/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+  async getAdminMatches(): Promise<AdminMatchRecord[]> {
+    return request<AdminMatchRecord[]>('/admin/matches');
+  },
+  async updateAdminMatch(matchId: string, payload: Partial<AdminMatchRecord>): Promise<{ message: string; match: AdminMatchRecord }> {
+    return request<{ message: string; match: AdminMatchRecord }>(`/admin/matches/${matchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   },
 };

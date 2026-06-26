@@ -82,7 +82,6 @@ if ($method === 'GET' && $path === '/me') {
         SELECT
             id,
             nickname,
-            email,
             role,
             avatar_url AS avatarUrl,
             preferred_army_id AS preferredArmyId,
@@ -102,6 +101,9 @@ if ($method === 'POST' && $path === '/auth/register') {
     $email = trim((string) ($payload['email'] ?? ''));
     $password = (string) ($payload['password'] ?? '');
     $passwordConfirmation = (string) ($payload['passwordConfirmation'] ?? '');
+    $normalizedEmail = normalizeEmail($email);
+    $hasSecureEmailColumns = usersEmailSecurityColumnsAvailable($pdo);
+    $emailHash = $hasSecureEmailColumns ? hashEmail($normalizedEmail, $config['app']) : null;
 
     if (mb_strlen($nickname) < 4) {
         jsonResponse(['error' => 'Il nickname deve avere almeno 4 caratteri.'], 422);
@@ -120,17 +122,34 @@ if ($method === 'POST' && $path === '/auth/register') {
     }
 
     try {
-        $duplicateStmt = $pdo->prepare('
+        $duplicateSql = '
             SELECT id, nickname, email
             FROM users
             WHERE LOWER(nickname) = LOWER(:nickname)
                OR LOWER(email) = LOWER(:email)
+        ';
+
+        if ($hasSecureEmailColumns) {
+            $duplicateSql .= '
+               OR email_hash = :email_hash
+            ';
+        }
+
+        $duplicateSql .= '
             LIMIT 1
-        ');
-        $duplicateStmt->execute([
+        ';
+
+        $duplicateParams = [
             'nickname' => $nickname,
             'email' => $email,
-        ]);
+        ];
+
+        if ($hasSecureEmailColumns) {
+            $duplicateParams['email_hash'] = $emailHash;
+        }
+
+        $duplicateStmt = $pdo->prepare($duplicateSql);
+        $duplicateStmt->execute($duplicateParams);
 
         $duplicate = $duplicateStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -144,37 +163,59 @@ if ($method === 'POST' && $path === '/auth/register') {
 
         $userId = uuidV4();
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $storedEmail = $email;
+        $encryptedEmail = null;
 
-        $insertStmt = $pdo->prepare('
-            INSERT INTO users (
-                id,
-                nickname,
-                email,
-                password_hash,
-                role,
-                is_active,
-                created_at,
-                updated_at
-            ) VALUES (
-                :id,
-                :nickname,
-                :email,
-                :password_hash,
-                :role,
-                :is_active,
-                NOW(),
-                NOW()
-            )
-        ');
+        if ($hasSecureEmailColumns) {
+            $storedEmail = secureEmailStoragePlaceholder($emailHash);
+            $encryptedEmail = encryptSensitiveValue($email, $config['app']);
+        }
 
-        $insertStmt->execute([
+        $insertColumns = [
+            'id',
+            'nickname',
+            'email',
+            'password_hash',
+            'role',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ];
+        $insertValues = [
+            ':id',
+            ':nickname',
+            ':email',
+            ':password_hash',
+            ':role',
+            ':is_active',
+            'NOW()',
+            'NOW()',
+        ];
+        $insertParams = [
             'id' => $userId,
             'nickname' => $nickname,
-            'email' => $email,
+            'email' => $storedEmail,
             'password_hash' => $passwordHash,
             'role' => 'USER',
             'is_active' => 1,
-        ]);
+        ];
+
+        if ($hasSecureEmailColumns) {
+            array_splice($insertColumns, 3, 0, ['email_encrypted', 'email_hash']);
+            array_splice($insertValues, 3, 0, [':email_encrypted', ':email_hash']);
+            $insertParams['email_encrypted'] = $encryptedEmail;
+            $insertParams['email_hash'] = $emailHash;
+        }
+
+        $insertStmt = $pdo->prepare('
+            INSERT INTO users (
+                ' . implode(",\n                ", $insertColumns) . '
+            ) VALUES (
+                ' . implode(",\n                ", $insertValues) . '
+            )
+        ');
+
+        $insertStmt->execute($insertParams);
 
         $_SESSION['user_id'] = $userId;
 
@@ -188,7 +229,6 @@ if ($method === 'POST' && $path === '/auth/register') {
             'user' => [
                 'id' => $userId,
                 'nickname' => $nickname,
-                'email' => $email,
                 'role' => 'USER',
                 'avatarUrl' => null,
                 'preferredArmyId' => null,
@@ -206,35 +246,72 @@ if ($method === 'POST' && $path === '/auth/register') {
 if ($method === 'POST' && $path === '/auth/login') {
     $login = trim((string) ($payload['email'] ?? $payload['login'] ?? ''));
     $password = (string) ($payload['password'] ?? '');
+    $normalizedLogin = normalizeEmail($login);
+    $hasSecureEmailColumns = usersEmailSecurityColumnsAvailable($pdo);
+    $loginHash = $hasSecureEmailColumns ? hashEmail($normalizedLogin, $config['app']) : null;
 
     if ($login === '' || $password === '') {
         jsonResponse(['error' => 'Credenziali non valide.'], 422);
     }
 
-    $stmt = $pdo->prepare('
+    $loginFields = [
+        'id',
+        'nickname',
+        'email',
+        'role',
+        'password_hash',
+        'avatar_url AS avatarUrl',
+        'preferred_army_id AS preferredArmyId',
+        'preferred_faction AS preferredFaction',
+    ];
+
+    if ($hasSecureEmailColumns) {
+        array_splice($loginFields, 4, 0, ['email_encrypted', 'email_hash']);
+    }
+
+    $loginSql = '
         SELECT
-            id,
-            nickname,
-            email,
-            role,
-            password_hash,
-            avatar_url AS avatarUrl,
-            preferred_army_id AS preferredArmyId,
-            preferred_faction AS preferredFaction
+            ' . implode(",\n            ", $loginFields) . '
         FROM users
         WHERE LOWER(email) = LOWER(:login)
+    ';
+
+    if ($hasSecureEmailColumns) {
+        $loginSql .= '
+           OR email_hash = :login_hash
+        ';
+    }
+
+    $loginSql .= '
            OR LOWER(nickname) = LOWER(:login)
         LIMIT 1
-    ');
-    $stmt->execute(['login' => $login]);
+    ';
+
+    $loginParams = [
+        'login' => $login,
+    ];
+
+    if ($hasSecureEmailColumns) {
+        $loginParams['login_hash'] = $loginHash;
+    }
+
+    $stmt = $pdo->prepare($loginSql);
+    $stmt->execute($loginParams);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (! $user || ! password_verify($password, (string) $user['password_hash'])) {
         jsonResponse(['error' => 'Credenziali non valide.'], 401);
     }
 
+    if ($hasSecureEmailColumns) {
+        migrateLegacyEmailIfNeeded($pdo, $user, $config['app']);
+    }
+
     $_SESSION['user_id'] = $user['id'];
     unset($user['password_hash']);
+    unset($user['email']);
+    unset($user['email_encrypted']);
+    unset($user['email_hash']);
 
     jsonResponse([
         'message' => 'Login effettuato con successo.',
@@ -322,6 +399,164 @@ if ($method === 'GET' && $path === '/users') {
     ');
 
     jsonResponse($stmt->fetchAll());
+}
+
+if ($method === 'GET' && $path === '/admin/users') {
+    requireAdmin($pdo);
+
+    $stmt = $pdo->query("
+        SELECT
+            id,
+            nickname,
+            role,
+            is_active AS isActive,
+            preferred_army_id AS preferredArmyId,
+            preferred_faction AS preferredFaction,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM users
+        ORDER BY nickname ASC
+    ");
+
+    $users = array_map(
+        static function (array $row): array {
+            $row['isActive'] = (bool) $row['isActive'];
+            return $row;
+        },
+        $stmt->fetchAll(PDO::FETCH_ASSOC)
+    );
+
+    jsonResponse($users);
+}
+
+if ($method === 'PATCH' && preg_match('#^/admin/users/([A-Za-z0-9-]+)$#', $path, $matches) === 1) {
+    requireAdmin($pdo);
+
+    $userId = $matches[1];
+    $nickname = trim((string) ($payload['nickname'] ?? ''));
+    $email = trim((string) ($payload['email'] ?? ''));
+    $role = strtoupper(trim((string) ($payload['role'] ?? 'USER')));
+    $isActive = (int) (($payload['isActive'] ?? true) ? 1 : 0);
+    $preferredArmyId = trim((string) ($payload['preferredArmyId'] ?? ''));
+    $preferredFaction = trim((string) ($payload['preferredFaction'] ?? ''));
+    $hasSecureEmailColumns = usersEmailSecurityColumnsAvailable($pdo);
+    $normalizedEmail = $email !== '' ? normalizeEmail($email) : '';
+    $emailHash = $email !== '' && $hasSecureEmailColumns ? hashEmail($normalizedEmail, $config['app']) : null;
+
+    if ($nickname === '' || mb_strlen($nickname) < 3) {
+        jsonResponse(['error' => 'Il nickname deve avere almeno 3 caratteri.'], 422);
+    }
+
+    if ($email !== '' && ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        jsonResponse(['error' => 'Email non valida.'], 422);
+    }
+
+    if (! in_array($role, ['USER', 'ADMIN'], true)) {
+        jsonResponse(['error' => 'Ruolo non valido.'], 422);
+    }
+
+    $duplicateSql = "
+        SELECT id
+        FROM users
+        WHERE id <> :id
+          AND (
+            LOWER(nickname) = LOWER(:nickname)
+            OR LOWER(email) = LOWER(:email)
+    ";
+
+    if ($hasSecureEmailColumns && $email !== '') {
+        $duplicateSql .= "
+            OR email_hash = :email_hash
+        ";
+    }
+
+    $duplicateSql .= "
+          )
+        LIMIT 1
+    ";
+
+    $duplicateParams = [
+        'id' => $userId,
+        'nickname' => $nickname,
+        'email' => $email,
+    ];
+
+    if ($hasSecureEmailColumns && $email !== '') {
+        $duplicateParams['email_hash'] = $emailHash;
+    }
+
+    $duplicateStmt = $pdo->prepare($duplicateSql);
+    $duplicateStmt->execute($duplicateParams);
+
+    if ($duplicateStmt->fetch(PDO::FETCH_ASSOC)) {
+        jsonResponse(['error' => 'Nickname o email gia in uso da un altro utente.'], 409);
+    }
+
+    $updateAssignments = [
+        'nickname = :nickname',
+        'role = :role',
+        'is_active = :is_active',
+        'preferred_army_id = :preferred_army_id',
+        'preferred_faction = :preferred_faction',
+        'updated_at = NOW()',
+    ];
+    $updateParams = [
+        'id' => $userId,
+        'nickname' => $nickname,
+        'role' => $role,
+        'is_active' => $isActive,
+        'preferred_army_id' => $preferredArmyId !== '' ? $preferredArmyId : null,
+        'preferred_faction' => $preferredFaction !== '' ? $preferredFaction : null,
+    ];
+
+    if ($email !== '') {
+        if ($hasSecureEmailColumns) {
+            $updateAssignments[] = 'email = :email';
+            $updateAssignments[] = 'email_encrypted = :email_encrypted';
+            $updateAssignments[] = 'email_hash = :email_hash';
+            $updateParams['email'] = secureEmailStoragePlaceholder($emailHash);
+            $updateParams['email_encrypted'] = encryptSensitiveValue($email, $config['app']);
+            $updateParams['email_hash'] = $emailHash;
+        } else {
+            $updateAssignments[] = 'email = :email';
+            $updateParams['email'] = $email;
+        }
+    }
+
+    $updateStmt = $pdo->prepare("
+        UPDATE users
+        SET " . implode(",\n            ", $updateAssignments) . "
+        WHERE id = :id
+    ");
+    $updateStmt->execute($updateParams);
+
+    $selectStmt = $pdo->prepare("
+        SELECT
+            id,
+            nickname,
+            role,
+            is_active AS isActive,
+            preferred_army_id AS preferredArmyId,
+            preferred_faction AS preferredFaction,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+        FROM users
+        WHERE id = :id
+        LIMIT 1
+    ");
+    $selectStmt->execute(['id' => $userId]);
+    $user = $selectStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $user) {
+        jsonResponse(['error' => 'Utente non trovato.'], 404);
+    }
+
+    $user['isActive'] = (bool) $user['isActive'];
+
+    jsonResponse([
+        'message' => 'Utente aggiornato correttamente.',
+        'user' => $user,
+    ]);
 }
 
 if ($method === 'GET' && $path === '/territories') {
@@ -587,6 +822,234 @@ if ($method === 'GET' && $path === '/matches/pending-by-me') {
     $stmt->execute(['current_user_id' => $currentUserId]);
 
     jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+if ($method === 'GET' && $path === '/admin/matches') {
+    requireAdmin($pdo);
+
+    $stmt = $pdo->query("
+        SELECT
+            m.id,
+            m.territory_id AS territoryId,
+            t.name AS territoryName,
+            m.status,
+            m.played_at AS playedAt,
+            m.created_at AS createdAt,
+            m.updated_at AS updatedAt,
+            playerA.id AS playerAId,
+            playerA.nickname AS playerAName,
+            playerB.id AS playerBId,
+            playerB.nickname AS playerBName,
+            resultA.own_army_id AS armyAId,
+            armyA.name AS armyAName,
+            resultA.own_faction AS factionA,
+            resultB.own_army_id AS armyBId,
+            armyB.name AS armyBName,
+            resultB.own_faction AS factionB,
+            COALESCE(resultA.own_score, resultB.opponent_score, 0) AS victoryPointsA,
+            COALESCE(resultB.own_score, resultA.opponent_score, 0) AS victoryPointsB
+        FROM matches m
+        INNER JOIN territories t ON t.id = m.territory_id
+        INNER JOIN users playerA ON playerA.id = m.player_a_id
+        INNER JOIN users playerB ON playerB.id = m.player_b_id
+        LEFT JOIN match_results resultA ON resultA.match_id = m.id AND resultA.submitted_by_user_id = m.player_a_id
+        LEFT JOIN match_results resultB ON resultB.match_id = m.id AND resultB.submitted_by_user_id = m.player_b_id
+        LEFT JOIN armies armyA ON armyA.id = resultA.own_army_id
+        LEFT JOIN armies armyB ON armyB.id = resultB.own_army_id
+        ORDER BY m.created_at DESC
+        LIMIT 100
+    ");
+
+    $adminMatches = [];
+
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $victoryPointsA = (int) $row['victoryPointsA'];
+        $victoryPointsB = (int) $row['victoryPointsB'];
+        $matchPoints = calculateMatchPoints($victoryPointsA, $victoryPointsB);
+        $row['victoryPointsA'] = $victoryPointsA;
+        $row['victoryPointsB'] = $victoryPointsB;
+        $row['matchPointsA'] = $matchPoints['playerA'];
+        $row['matchPointsB'] = $matchPoints['playerB'];
+        $adminMatches[] = $row;
+    }
+
+    jsonResponse($adminMatches);
+}
+
+if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $path, $matches) === 1) {
+    requireAdmin($pdo);
+
+    $matchId = $matches[1];
+    $territoryId = trim((string) ($payload['territoryId'] ?? ''));
+    $status = strtoupper(trim((string) ($payload['status'] ?? 'PENDING')));
+    $playedAt = trim((string) ($payload['playedAt'] ?? ''));
+    $victoryPointsA = (int) ($payload['victoryPointsA'] ?? 0);
+    $victoryPointsB = (int) ($payload['victoryPointsB'] ?? 0);
+
+    if ($territoryId === '') {
+        jsonResponse(['error' => 'Territorio obbligatorio.'], 422);
+    }
+
+    if (! in_array($status, ['PENDING', 'CONFIRMED', 'CONFLICT', 'CANCELLED'], true)) {
+        jsonResponse(['error' => 'Stato non valido.'], 422);
+    }
+
+    if ($victoryPointsA < 0 || $victoryPointsB < 0) {
+        jsonResponse(['error' => 'I punti vittoria non possono essere negativi.'], 422);
+    }
+
+    $matchLookupStmt = $pdo->prepare("
+        SELECT
+            m.id,
+            m.player_a_id AS playerAId,
+            m.player_b_id AS playerBId,
+            resultA.id AS resultAId,
+            resultB.id AS resultBId
+        FROM matches m
+        LEFT JOIN match_results resultA ON resultA.match_id = m.id AND resultA.submitted_by_user_id = m.player_a_id
+        LEFT JOIN match_results resultB ON resultB.match_id = m.id AND resultB.submitted_by_user_id = m.player_b_id
+        WHERE m.id = :id
+        LIMIT 1
+        FOR UPDATE
+    ");
+
+    $pdo->beginTransaction();
+
+    try {
+        $matchLookupStmt->execute(['id' => $matchId]);
+        $matchData = $matchLookupStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (! $matchData) {
+            $pdo->rollBack();
+            jsonResponse(['error' => 'Match non trovato.'], 404);
+        }
+
+        $winnerUserId = null;
+        $confirmedAt = null;
+
+        if ($status === 'CONFIRMED') {
+            $matchPoints = calculateMatchPoints($victoryPointsA, $victoryPointsB);
+
+            if ($matchPoints['playerA'] > $matchPoints['playerB']) {
+                $winnerUserId = (string) $matchData['playerAId'];
+            } elseif ($matchPoints['playerB'] > $matchPoints['playerA']) {
+                $winnerUserId = (string) $matchData['playerBId'];
+            }
+
+            $confirmedAt = date('Y-m-d H:i:s');
+        }
+
+        $updateMatchStmt = $pdo->prepare("
+            UPDATE matches
+            SET territory_id = :territory_id,
+                status = :status,
+                played_at = :played_at,
+                confirmed_at = :confirmed_at,
+                winner_user_id = :winner_user_id,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+        $updateMatchStmt->execute([
+            'id' => $matchId,
+            'territory_id' => $territoryId,
+            'status' => $status,
+            'played_at' => $playedAt !== '' ? $playedAt : null,
+            'confirmed_at' => $confirmedAt,
+            'winner_user_id' => $winnerUserId,
+        ]);
+
+        if ($matchData['resultAId']) {
+            $updateResultAStmt = $pdo->prepare("
+                UPDATE match_results
+                SET own_score = :own_score,
+                    opponent_score = :opponent_score,
+                    status = :status,
+                    updated_at = NOW()
+                WHERE id = :id
+            ");
+            $updateResultAStmt->execute([
+                'id' => $matchData['resultAId'],
+                'own_score' => $victoryPointsA,
+                'opponent_score' => $victoryPointsB,
+                'status' => $status,
+            ]);
+        }
+
+        if ($matchData['resultBId']) {
+            $updateResultBStmt = $pdo->prepare("
+                UPDATE match_results
+                SET own_score = :own_score,
+                    opponent_score = :opponent_score,
+                    status = :status,
+                    updated_at = NOW()
+                WHERE id = :id
+            ");
+            $updateResultBStmt->execute([
+                'id' => $matchData['resultBId'],
+                'own_score' => $victoryPointsB,
+                'opponent_score' => $victoryPointsA,
+                'status' => $status,
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        $pdo->rollBack();
+        jsonResponse([
+            'error' => 'Errore durante l aggiornamento del match.',
+            'details' => $exception->getMessage(),
+        ], 500);
+    }
+
+    $refreshStmt = $pdo->prepare("
+        SELECT
+            m.id,
+            m.territory_id AS territoryId,
+            t.name AS territoryName,
+            m.status,
+            m.played_at AS playedAt,
+            m.created_at AS createdAt,
+            m.updated_at AS updatedAt,
+            playerA.id AS playerAId,
+            playerA.nickname AS playerAName,
+            playerB.id AS playerBId,
+            playerB.nickname AS playerBName,
+            resultA.own_army_id AS armyAId,
+            armyA.name AS armyAName,
+            resultA.own_faction AS factionA,
+            resultB.own_army_id AS armyBId,
+            armyB.name AS armyBName,
+            resultB.own_faction AS factionB,
+            COALESCE(resultA.own_score, resultB.opponent_score, 0) AS victoryPointsA,
+            COALESCE(resultB.own_score, resultA.opponent_score, 0) AS victoryPointsB
+        FROM matches m
+        INNER JOIN territories t ON t.id = m.territory_id
+        INNER JOIN users playerA ON playerA.id = m.player_a_id
+        INNER JOIN users playerB ON playerB.id = m.player_b_id
+        LEFT JOIN match_results resultA ON resultA.match_id = m.id AND resultA.submitted_by_user_id = m.player_a_id
+        LEFT JOIN match_results resultB ON resultB.match_id = m.id AND resultB.submitted_by_user_id = m.player_b_id
+        LEFT JOIN armies armyA ON armyA.id = resultA.own_army_id
+        LEFT JOIN armies armyB ON armyB.id = resultB.own_army_id
+        WHERE m.id = :id
+        LIMIT 1
+    ");
+    $refreshStmt->execute(['id' => $matchId]);
+    $match = $refreshStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $match) {
+        jsonResponse(['error' => 'Match non trovato dopo aggiornamento.'], 404);
+    }
+
+    $match['victoryPointsA'] = (int) $match['victoryPointsA'];
+    $match['victoryPointsB'] = (int) $match['victoryPointsB'];
+    $matchPoints = calculateMatchPoints($match['victoryPointsA'], $match['victoryPointsB']);
+    $match['matchPointsA'] = $matchPoints['playerA'];
+    $match['matchPointsB'] = $matchPoints['playerB'];
+
+    jsonResponse([
+        'message' => 'Match aggiornato correttamente.',
+        'match' => $match,
+    ]);
 }
 
 if ($method === 'POST' && $path === '/matches/results') {
@@ -977,6 +1440,123 @@ function sendRegistrationEmail(array $appConfig, string $email, string $nickname
     ];
 
     return mail($email, $subject, $message, implode("\r\n", $headers));
+}
+
+function normalizeEmail(string $email): string
+{
+    return mb_strtolower(trim($email));
+}
+
+function usersEmailSecurityColumnsAvailable(PDO $pdo): bool
+{
+    return columnExists($pdo, 'users', 'email_encrypted')
+        && columnExists($pdo, 'users', 'email_hash');
+}
+
+function emailEncryptionKey(array $appConfig): string
+{
+    $rawKey = (string) ($appConfig['data_encryption_key'] ?? '');
+
+    if ($rawKey === '') {
+        throw new RuntimeException('Chiave di cifratura dati non configurata.');
+    }
+
+    return hash('sha256', $rawKey, true);
+}
+
+function hashEmail(string $normalizedEmail, array $appConfig): string
+{
+    $rawKey = (string) ($appConfig['data_encryption_key'] ?? '');
+
+    if ($rawKey === '') {
+        throw new RuntimeException('Chiave di cifratura dati non configurata.');
+    }
+
+    return hash_hmac('sha256', $normalizedEmail, $rawKey);
+}
+
+function secureEmailStoragePlaceholder(?string $emailHash): string
+{
+    return 'enc:' . ($emailHash ?? uuidV4());
+}
+
+function encryptSensitiveValue(string $plainText, array $appConfig): string
+{
+    $cipher = 'aes-256-gcm';
+    $iv = random_bytes(12);
+    $tag = '';
+    $encrypted = openssl_encrypt(
+        $plainText,
+        $cipher,
+        emailEncryptionKey($appConfig),
+        OPENSSL_RAW_DATA,
+        $iv,
+        $tag
+    );
+
+    if ($encrypted === false) {
+        throw new RuntimeException('Cifratura del dato sensibile fallita.');
+    }
+
+    return base64_encode(json_encode([
+        'iv' => base64_encode($iv),
+        'tag' => base64_encode($tag),
+        'value' => base64_encode($encrypted),
+    ], JSON_THROW_ON_ERROR));
+}
+
+function migrateLegacyEmailIfNeeded(PDO $pdo, array $user, array $appConfig): void
+{
+    $email = isset($user['email']) ? trim((string) $user['email']) : '';
+    $emailHash = isset($user['email_hash']) ? trim((string) $user['email_hash']) : '';
+    $encryptedEmail = isset($user['email_encrypted']) ? trim((string) $user['email_encrypted']) : '';
+
+    if ($email === '' || str_starts_with($email, 'enc:') || $emailHash !== '' || $encryptedEmail !== '') {
+        return;
+    }
+
+    if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+
+    $normalizedEmail = normalizeEmail($email);
+    $newHash = hashEmail($normalizedEmail, $appConfig);
+    $updateStmt = $pdo->prepare("
+        UPDATE users
+        SET email = :email,
+            email_encrypted = :email_encrypted,
+            email_hash = :email_hash,
+            updated_at = NOW()
+        WHERE id = :id
+    ");
+    $updateStmt->execute([
+        'id' => (string) $user['id'],
+        'email' => secureEmailStoragePlaceholder($newHash),
+        'email_encrypted' => encryptSensitiveValue($email, $appConfig),
+        'email_hash' => $newHash,
+    ]);
+}
+
+function requireAdmin(PDO $pdo): void
+{
+    $userId = $_SESSION['user_id'] ?? null;
+
+    if (! is_string($userId) || $userId === '') {
+        jsonResponse(['error' => 'Autenticazione richiesta.'], 401);
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT role
+        FROM users
+        WHERE id = :id
+        LIMIT 1
+    ");
+    $stmt->execute(['id' => $userId]);
+    $role = $stmt->fetchColumn();
+
+    if ($role !== 'ADMIN') {
+        jsonResponse(['error' => 'Accesso riservato agli amministratori.'], 403);
+    }
 }
 
 function firstExistingPath(array $candidates): ?string

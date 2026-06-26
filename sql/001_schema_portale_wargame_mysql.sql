@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
   id CHAR(36) NOT NULL,
   nickname VARCHAR(80) NOT NULL,
   email VARCHAR(255) NOT NULL,
+  email_encrypted TEXT DEFAULT NULL,
+  email_hash CHAR(64) DEFAULT NULL,
   password_hash VARCHAR(255) NOT NULL,
   avatar_url VARCHAR(500) DEFAULT NULL,
   preferred_army_id CHAR(36) DEFAULT NULL,
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_nickname (nickname),
   UNIQUE KEY uq_users_email (email),
+  UNIQUE KEY uq_users_email_hash (email_hash),
   KEY idx_users_preferred_army (preferred_army_id),
   CONSTRAINT fk_users_preferred_army
     FOREIGN KEY (preferred_army_id) REFERENCES armies(id)
