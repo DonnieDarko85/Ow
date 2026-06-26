@@ -559,6 +559,98 @@ if ($method === 'PATCH' && preg_match('#^/admin/users/([A-Za-z0-9-]+)$#', $path,
     ]);
 }
 
+if ($method === 'POST' && $path === '/admin/territories') {
+    requireAdmin($pdo);
+
+    $name = trim((string) ($payload['name'] ?? ''));
+    $description = trim((string) ($payload['description'] ?? ''));
+    $lore = trim((string) ($payload['lore'] ?? ''));
+    $mapPathId = trim((string) ($payload['mapPathId'] ?? ''));
+
+    if ($name === '' || mb_strlen($name) < 3) {
+        jsonResponse(['error' => 'Il nome territorio deve avere almeno 3 caratteri.'], 422);
+    }
+
+    $slug = slugify($name);
+
+    if ($slug === '') {
+        jsonResponse(['error' => 'Impossibile generare uno slug valido per il territorio.'], 422);
+    }
+
+    $duplicateStmt = $pdo->prepare("
+        SELECT id
+        FROM territories
+        WHERE LOWER(name) = LOWER(:name)
+           OR slug = :slug
+        LIMIT 1
+    ");
+    $duplicateStmt->execute([
+        'name' => $name,
+        'slug' => $slug,
+    ]);
+
+    if ($duplicateStmt->fetch(PDO::FETCH_ASSOC)) {
+        jsonResponse(['error' => 'Esiste gia un territorio con questo nome o slug.'], 409);
+    }
+
+    $sortOrderStmt = $pdo->query("
+        SELECT COALESCE(MAX(sort_order), 0) + 10
+        FROM territories
+    ");
+    $sortOrder = (int) $sortOrderStmt->fetchColumn();
+    $territoryId = uuidV4();
+
+    $insertStmt = $pdo->prepare("
+        INSERT INTO territories (
+            id,
+            name,
+            slug,
+            description,
+            lore,
+            map_path_id,
+            sort_order,
+            is_active,
+            created_at,
+            updated_at
+        ) VALUES (
+            :id,
+            :name,
+            :slug,
+            :description,
+            :lore,
+            :map_path_id,
+            :sort_order,
+            1,
+            NOW(),
+            NOW()
+        )
+    ");
+    $insertStmt->execute([
+        'id' => $territoryId,
+        'name' => $name,
+        'slug' => $slug,
+        'description' => $description !== '' ? $description : null,
+        'lore' => $lore !== '' ? $lore : null,
+        'map_path_id' => $mapPathId !== '' ? $mapPathId : null,
+        'sort_order' => $sortOrder,
+    ]);
+
+    $factionCodes = getActiveFactionCodes($pdo);
+
+    jsonResponse([
+        'message' => 'Territorio creato correttamente.',
+        'territory' => [
+            'id' => $territoryId,
+            'name' => $name,
+            'slug' => $slug,
+            'description' => $description,
+            'lore' => $lore,
+            'mapPathId' => $mapPathId,
+            'stats' => buildTerritoryStatsPayload(0, 0, [], [], $factionCodes),
+        ],
+    ], 201);
+}
+
 if ($method === 'GET' && $path === '/territories') {
     $stmt = $pdo->query('
         SELECT
@@ -1410,6 +1502,21 @@ function uuidV4(): string
     $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
 
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+}
+
+function slugify(string $value): string
+{
+    $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+    if ($normalized === false) {
+        $normalized = $value;
+    }
+
+    $slug = strtolower((string) $normalized);
+    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+    $slug = trim((string) $slug, '-');
+
+    return $slug;
 }
 
 function sendRegistrationEmail(array $appConfig, string $email, string $nickname): bool

@@ -178,3 +178,10 @@ export interface AuthResult {
 export interface MeResult {
   user: UserProfile | null;
 }
+
+export interface CreateTerritoryPayload {
+  name: string;
+  description?: string;
+  lore?: string;
+  mapPathId?: string;
+}

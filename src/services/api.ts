@@ -1,5 +1,5 @@
 import { appConfig, armies, currentUser, factions, recentMatches, territories } from '@/mocks/data';
-import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
+import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, CreateTerritoryPayload, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const apiBaseUrls = configuredApiBaseUrl
@@ -84,6 +84,46 @@ export const api = {
     }
 
     return request<Territory[]>('/territories');
+  },
+  async createAdminTerritory(payload: CreateTerritoryPayload): Promise<{ message: string; territory: Territory }> {
+    if (apiBaseUrls[0] === '') {
+      const territory: Territory = {
+        id: `territory-${Date.now()}`,
+        name: payload.name,
+        slug: payload.name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, ''),
+        description: payload.description ?? '',
+        lore: payload.lore ?? '',
+        mapPathId: payload.mapPathId ?? '',
+        stats: {
+          confirmedBattles: 0,
+          pendingBattles: 0,
+          dominantFaction: 'FORCES_OF_FANTASY',
+          factionControl: [
+            { faction: 'FORCES_OF_FANTASY', percentage: 0 },
+            { faction: 'RAVAGING_HORDES', percentage: 0 },
+            { faction: 'UNDEAD', percentage: 0 },
+          ],
+          armyControl: [],
+        },
+      };
+
+      territories.push(territory);
+
+      return {
+        message: 'Territorio creato in modalita locale.',
+        territory,
+      };
+    }
+
+    return request<{ message: string; territory: Territory }>('/admin/territories', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
   async getRecentMatches(): Promise<MatchSummary[]> {
     if (apiBaseUrls[0] === '') {

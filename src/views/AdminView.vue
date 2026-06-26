@@ -3,7 +3,7 @@
     <SectionHeader
       eyebrow="Amministrazione"
       title="Strumenti admin"
-      description="Gestione utenti, revisione partite e area mappa pronta per il prossimo passaggio."
+      description="Gestione utenti, revisione partite e prima base per il mapping esagonale della campagna."
     />
 
     <section class="panel-card admin-tabs">
@@ -174,10 +174,13 @@
       <div class="admin-panel-head">
         <div>
           <p class="eyebrow">Mappa</p>
-          <h3>Strumento mappa</h3>
+          <h3>Editor esagoni territorio</h3>
         </div>
       </div>
-      <p class="muted-copy">Area riservata alla gestione mappa. La definiamo nel prossimo passaggio.</p>
+      <p class="muted-copy">
+        Prima versione dell editor admin: hover esagono per esagono, selezione multipla, assegnazione al territorio e persistenza locale con export/import JSON.
+      </p>
+      <AdminHexMapEditor :territories="territories" />
     </section>
   </div>
 </template>
@@ -185,6 +188,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
+import AdminHexMapEditor from '@/components/AdminHexMapEditor.vue';
 import SectionHeader from '@/components/SectionHeader.vue';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
