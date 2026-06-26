@@ -10,11 +10,11 @@ return [
         'charset' => 'utf8mb4',
     ],
     'app' => [
-        'name' => 'Old World Federation Play Portal',
+        'name' => 'Sun-Tzu Secrets Play Portal',
         'version' => '0.1.0-alpha',
-        'organization_name' => 'Old World Federation',
+        'organization_name' => 'Sun-Tzu Secrets',
         'legal_note' => 'Aggiornare con note legali definitive, privacy e contatti ufficiali.',
-        'contact_email' => 'play@oldworldfederation.com',
-        'registration_mail_from' => 'play@oldworldfederation.com',
+        'contact_email' => 'play@suntzusecrets.com',
+        'registration_mail_from' => 'play@suntzusecrets.com',
     ],
 ];

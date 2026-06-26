@@ -1,68 +1,32 @@
 <template>
   <div class="page-stack">
-    <section class="hero-panel">
-      <div>
-        <p class="eyebrow">Comando di campagna</p>
-        <h1>Controlla territori, conferme incrociate e avanzata delle fazioni.</h1>
-        <p class="muted-copy hero-copy">
-          Dashboard centrale pensata per desktop e cellulare, con mappa interattiva, riepilogo rapido e branding configurabile.
-        </p>
-      </div>
-      <div class="hero-side">
-        <div class="logo-placeholder large">Old World Federation Play</div>
-        <div class="logo-placeholder large">Banner circuito / campagna</div>
-      </div>
-    </section>
-
     <section class="stats-grid">
-      <StatCard label="Territori attivi" :value="territories.length" caption="Mappa campagna configurabile" />
-      <StatCard label="Battaglie confermate" :value="confirmedBattles" caption="Calcolo aggregato live" />
-      <StatCard label="Battaglie pendenti" :value="pendingBattles" caption="Da confermare dai due giocatori" />
-      <StatCard label="Fazione in vantaggio" :value="leadingFaction" caption="Dominio complessivo attuale" />
+      <StatCard label="Territori attivi" :value="territories.length" />
+      <StatCard label="Battaglie confermate" :value="confirmedBattles" />
+      <article class="stat-card faction-stat-card">
+        <p class="eyebrow">Fazione in vantaggio</p>
+        <div class="faction-stat-body">
+          <div>
+            <strong>{{ leadingFaction }}</strong>
+          </div>
+          <div
+            class="faction-pie"
+            :style="{ background: factionPieBackground }"
+            aria-label="Distribuzione del controllo tra le tre fazioni"
+          ></div>
+        </div>
+      </article>
     </section>
 
-    <TerritoryMap :territories="territories" />
+    <TerritoryMap />
 
-    <section class="content-grid two-columns">
+    <section class="content-grid single-column">
       <div class="panel-card">
         <SectionHeader
           eyebrow="Ultimi scontri"
           title="Match recenti"
-          description="Storico compatto, leggibile su mobile e pronto per alimentarsi dalle API PHP."
         />
-        <MatchesTable :matches="recentMatches" />
-      </div>
-
-      <div class="panel-card">
-        <SectionHeader
-          eyebrow="Accesso rapido"
-          title="Azioni immediate"
-          description="Scorciatoie per i flussi piu frequenti nel portale."
-        />
-        <div class="quick-actions">
-          <template v-if="isAuthenticated">
-            <RouterLink to="/submit-result" class="action-card">
-              Inserisci risultato
-            </RouterLink>
-            <RouterLink to="/results" class="action-card">
-              Controlla stato conferme
-            </RouterLink>
-            <RouterLink to="/profile" class="action-card">
-              Aggiorna profilo e branding
-            </RouterLink>
-          </template>
-          <template v-else>
-            <RouterLink to="/auth/login" class="action-card">
-              Accedi per inserire risultati
-            </RouterLink>
-            <RouterLink to="/auth/register" class="action-card">
-              Crea un account giocatore
-            </RouterLink>
-            <div class="action-card static-card">
-              Consulta mappa e territori anche senza login
-            </div>
-          </template>
-        </div>
+        <MatchesTable :matches="recentMatches.slice(0, 10)" />
       </div>
     </section>
   </div>
@@ -70,30 +34,69 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterLink } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import MatchesTable from '@/components/MatchesTable.vue';
 import SectionHeader from '@/components/SectionHeader.vue';
 import StatCard from '@/components/StatCard.vue';
 import TerritoryMap from '@/components/TerritoryMap.vue';
+import type { Faction } from '@/types';
 import { useTheme } from '@/composables/useTheme';
 import { useAppStore } from '@/stores/app';
 
 const appStore = useAppStore();
 const { recentMatches, territories } = storeToRefs(appStore);
 const { factionLabel } = useTheme();
-const isAuthenticated = computed(() => appStore.isAuthenticated);
+const factionOrder: Faction[] = ['FORCES_OF_FANTASY', 'RAVAGING_HORDES', 'UNDEAD'];
+const factionColors: Record<Faction, string> = {
+  FORCES_OF_FANTASY: '#f5f5f5',
+  RAVAGING_HORDES: '#b3181f',
+  UNDEAD: '#777777',
+};
 
 const confirmedBattles = computed(() =>
   territories.value.reduce((sum, territory) => sum + territory.stats.confirmedBattles, 0),
 );
 
-const pendingBattles = computed(() =>
-  territories.value.reduce((sum, territory) => sum + territory.stats.pendingBattles, 0),
-);
+const factionDistribution = computed(() => {
+  if (confirmedBattles.value === 0 || territories.value.length === 0) {
+    return factionOrder.map((faction) => ({
+      faction,
+      percentage: 100 / factionOrder.length,
+    }));
+  }
+
+  const totals = new Map<Faction, number>(
+    factionOrder.map((faction) => [faction, 0]),
+  );
+
+  for (const territory of territories.value) {
+    for (const entry of territory.stats.factionControl) {
+      totals.set(entry.faction, (totals.get(entry.faction) ?? 0) + entry.percentage);
+    }
+  }
+
+  return factionOrder.map((faction) => ({
+    faction,
+    percentage: (totals.get(faction) ?? 0) / territories.value.length,
+  }));
+});
 
 const leadingFaction = computed(() => {
-  const firstTerritory = territories.value[0];
-  return firstTerritory ? factionLabel(firstTerritory.stats.dominantFaction) : 'N/D';
+  const leading = factionDistribution.value.reduce((best, current) =>
+    current.percentage > best.percentage ? current : best,
+  );
+  return factionLabel(leading.faction);
+});
+
+const factionPieBackground = computed(() => {
+  let currentStop = 0;
+  const segments = factionDistribution.value.map(({ faction, percentage }) => {
+    const nextStop = currentStop + percentage;
+    const segment = `${factionColors[faction]} ${currentStop}% ${nextStop}%`;
+    currentStop = nextStop;
+    return segment;
+  });
+
+  return `conic-gradient(${segments.join(', ')})`;
 });
 </script>

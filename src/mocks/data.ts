@@ -1,14 +1,14 @@
 import type { AppConfig, Army, MatchSummary, Territory, UserProfile } from '@/types';
 
 export const appConfig: AppConfig = {
-  appName: 'Old World Federation Play Portal',
+  appName: 'Sun-Tzu Secrets Play Portal',
   appVersion: '0.1.0-alpha',
-  organizationName: 'Old World Federation',
+  organizationName: 'Sun-Tzu Secrets',
   legalNote: 'Community portal dedicato al gioco organizzato di Warhammer: The Old World. Aggiornare privacy, termini e note legali definitive prima della pubblicazione.',
   privacyUrl: '#privacy',
   legalUrl: '#legal',
   cookieUrl: '#cookie',
-  contactEmail: 'play@oldworldfederation.com',
+  contactEmail: 'play@suntzusecrets.com',
 };
 
 export const armies: Army[] = [

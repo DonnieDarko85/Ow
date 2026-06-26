@@ -474,7 +474,7 @@ function uuidV4(): string
 
 function sendRegistrationEmail(array $appConfig, string $email, string $nickname): bool
 {
-    $appName = (string) ($appConfig['name'] ?? 'Old World Federation Play Portal');
+    $appName = (string) ($appConfig['name'] ?? 'Sun-Tzu Secrets Play Portal');
     $from = (string) ($appConfig['registration_mail_from'] ?? $appConfig['contact_email'] ?? '');
 
     if ($from === '') {

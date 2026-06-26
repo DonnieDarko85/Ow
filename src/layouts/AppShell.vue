@@ -1,48 +1,27 @@
 <template>
   <div class="app-shell">
     <aside class="shell-sidebar">
-      <div class="brand-card">
-        <div class="brand-mark">OWF</div>
-        <div>
-          <p class="eyebrow">Official Play Portal</p>
-          <h1>{{ config?.appName ?? 'Old World Federation Play Portal' }}</h1>
-        </div>
+      <div class="sidebar-brand">
+        <img :src="brandLogo" alt="Sun-Tzu Secrets logo" class="brand-logo" />
       </div>
 
       <nav class="main-nav" aria-label="Navigazione principale">
         <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="nav-link">
           <span>{{ item.label }}</span>
         </RouterLink>
+        <button v-if="user" type="button" class="nav-link nav-button logout-link" @click="handleLogout">
+          Logout
+        </button>
       </nav>
-
-      <section class="guild-card">
-        <p class="eyebrow">Old World Federation</p>
-        <div class="guild-logo-placeholder">
-          <span>OWF Logo Area</span>
-        </div>
-        <p class="muted-copy">
-          Area pronta per logo ufficiale federazione, partner o marchio evento.
-        </p>
-      </section>
     </aside>
 
     <div class="shell-content">
       <header class="shell-topbar">
         <div>
-          <p class="eyebrow">Stagione attiva</p>
-          <h2>Conquista dei Tre Fronti</h2>
+          <p class="eyebrow">Campagna attiva</p>
+          <h2>Le Ombre sulla Baia dei Relitti</h2>
         </div>
-        <div class="topbar-user">
-          <div class="avatar-placeholder">{{ initials }}</div>
-          <div>
-            <strong>{{ user?.nickname ?? 'Comandante' }}</strong>
-            <p class="muted-copy">{{ user ? 'Profilo operativo' : 'Accesso non effettuato' }}</p>
-          </div>
-        </div>
-        <div v-if="!user" class="topbar-actions">
-          <RouterLink class="topbar-link" to="/auth/login">Login</RouterLink>
-          <RouterLink class="topbar-link accent" to="/auth/register">Registrati</RouterLink>
-        </div>
+        <span class="season-badge">{{ user?.nickname ?? 'Accesso ospite' }}</span>
       </header>
 
       <main class="shell-main">
@@ -71,18 +50,23 @@
       <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="mobile-nav-link">
         {{ item.short }}
       </RouterLink>
+      <button v-if="user" type="button" class="mobile-nav-link mobile-nav-button" @click="handleLogout">
+        Logout
+      </button>
     </nav>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAppStore } from '@/stores/app';
+import brandLogo from '@/assets/sun-tzu-secrets-logo.jpg';
 
 const appStore = useAppStore();
 const { config, user } = storeToRefs(appStore);
+const router = useRouter();
 
 const navItems = computed(() => {
   if (!user.value) {
@@ -101,10 +85,10 @@ const navItems = computed(() => {
   ];
 });
 
-const initials = computed(() => {
-  const nickname = user.value?.nickname ?? 'OW';
-  return nickname.slice(0, 2).toUpperCase();
-});
+const handleLogout = async () => {
+  appStore.logout();
+  await router.push({ name: 'dashboard' });
+};
 
 onMounted(async () => {
   if (!appStore.hasBootstrapped) {
