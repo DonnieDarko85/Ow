@@ -1,5 +1,6 @@
 export type Faction = 'RAVAGING_HORDES' | 'FORCES_OF_FANTASY' | 'UNDEAD';
 export type MatchStatus = 'PENDING' | 'CONFIRMED' | 'CONFLICT' | 'CANCELLED';
+export type UserRole = 'USER' | 'ADMIN';
 
 export interface Army {
   id: string;
@@ -12,6 +13,7 @@ export interface UserProfile {
   id: string;
   nickname: string;
   email: string;
+  role: UserRole;
   avatarUrl?: string;
   preferredArmyId?: string;
   preferredFaction?: Faction;

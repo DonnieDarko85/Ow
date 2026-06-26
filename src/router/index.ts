@@ -6,6 +6,7 @@ import TerritoryDetailView from '@/views/TerritoryDetailView.vue';
 import SubmitResultView from '@/views/SubmitResultView.vue';
 import ResultsView from '@/views/ResultsView.vue';
 import ProfileView from '@/views/ProfileView.vue';
+import AdminView from '@/views/AdminView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
@@ -46,6 +47,12 @@ const router = createRouter({
           component: ProfileView,
           meta: { requiresAuth: true },
         },
+        {
+          path: 'admin',
+          name: 'admin',
+          component: AdminView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
       ],
     },
     {
@@ -79,6 +86,8 @@ router.beforeEach(async (to, from, next) => {
 
   if (to.matched.some((record) => record.meta.requiresAuth) && !appStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
+  } else if (to.matched.some((record) => record.meta.requiresAdmin) && !appStore.isAdmin) {
+    next({ name: 'dashboard' });
   } else if (to.name === 'login' && appStore.isAuthenticated) {
     next({ name: 'dashboard' });
   } else {

@@ -6,8 +6,21 @@
       </div>
 
       <nav class="main-nav" aria-label="Navigazione principale">
-        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="nav-link">
-          <span>{{ item.label }}</span>
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.label"
+          :to="item.to"
+          custom
+          v-slot="{ href, navigate }"
+        >
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'is-active': isNavItemActive(item.matchNames) }"
+            @click="navigate"
+          >
+            <span>{{ item.label }}</span>
+          </a>
         </RouterLink>
         <button v-if="user" type="button" class="nav-link nav-button logout-link" @click="handleLogout">
           Logout
@@ -25,7 +38,9 @@
       </header>
 
       <main class="shell-main">
-        <RouterView />
+        <section class="content-frame">
+          <RouterView />
+        </section>
       </main>
 
       <footer class="shell-footer">
@@ -47,8 +62,21 @@
     </div>
 
     <nav class="mobile-nav" aria-label="Navigazione mobile">
-      <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="mobile-nav-link">
-        {{ item.short }}
+      <RouterLink
+        v-for="item in navItems"
+        :key="item.short"
+        :to="item.to"
+        custom
+        v-slot="{ href, navigate }"
+      >
+        <a
+          :href="href"
+          class="mobile-nav-link"
+          :class="{ 'is-active': isNavItemActive(item.matchNames) }"
+          @click="navigate"
+        >
+          {{ item.short }}
+        </a>
       </RouterLink>
       <button v-if="user" type="button" class="mobile-nav-link mobile-nav-button" @click="handleLogout">
         Logout
@@ -59,7 +87,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAppStore } from '@/stores/app';
 import brandLogo from '@/assets/sun-tzu-secrets-logo.jpg';
@@ -67,23 +95,30 @@ import brandLogo from '@/assets/sun-tzu-secrets-logo.jpg';
 const appStore = useAppStore();
 const { config, user } = storeToRefs(appStore);
 const router = useRouter();
+const route = useRoute();
 
 const navItems = computed(() => {
   if (!user.value) {
     return [
-      { label: 'Mappa e territori', short: 'Mappa', to: '/' },
-      { label: 'Accedi', short: 'Login', to: '/auth/login' },
-      { label: 'Registrati', short: 'Join', to: '/auth/register' },
+      { label: 'Mappa e territori', short: 'Mappa', to: { name: 'dashboard' }, matchNames: ['dashboard', 'territory-detail'] },
+      { label: 'Accedi', short: 'Login', to: { name: 'login' }, matchNames: ['login', 'forgot-password'] },
+      { label: 'Registrati', short: 'Join', to: { name: 'register' }, matchNames: ['register'] },
     ];
   }
 
   return [
-    { label: 'Mappa e territori', short: 'Mappa', to: '/' },
-    { label: 'Inserisci risultato', short: 'Esito', to: '/submit-result' },
-    { label: 'I miei risultati', short: 'Storico', to: '/results' },
-    { label: 'Profilo', short: 'Profilo', to: '/profile' },
+    { label: 'Mappa e territori', short: 'Mappa', to: { name: 'dashboard' }, matchNames: ['dashboard', 'territory-detail'] },
+    { label: 'Inserisci risultato', short: 'Esito', to: { name: 'submit-result' }, matchNames: ['submit-result'] },
+    { label: 'I miei risultati', short: 'Storico', to: { name: 'results' }, matchNames: ['results'] },
+    { label: 'Profilo', short: 'Profilo', to: { name: 'profile' }, matchNames: ['profile'] },
+    ...(user.value?.role === 'ADMIN'
+      ? [{ label: 'Admin', short: 'Admin', to: { name: 'admin' }, matchNames: ['admin'] }]
+      : []),
   ];
 });
+
+const isNavItemActive = (matchNames: string[]) =>
+  route.name !== undefined && matchNames.includes(String(route.name));
 
 const handleLogout = async () => {
   appStore.logout();

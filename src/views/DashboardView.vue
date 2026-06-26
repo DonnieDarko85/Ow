@@ -1,6 +1,6 @@
 <template>
   <div class="page-stack">
-    <section class="stats-grid">
+    <section class="stats-grid home-stats">
       <StatCard label="Territori attivi" :value="territories.length" />
       <StatCard label="Battaglie confermate" :value="confirmedBattles" />
       <article class="stat-card faction-stat-card">
@@ -18,7 +18,9 @@
       </article>
     </section>
 
-    <TerritoryMap />
+    <section class="home-map-section">
+      <TerritoryMap />
+    </section>
 
     <section class="content-grid single-column">
       <div class="panel-card">

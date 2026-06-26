@@ -83,6 +83,7 @@ if ($method === 'GET' && $path === '/me') {
             id,
             nickname,
             email,
+            role,
             avatar_url AS avatarUrl,
             preferred_army_id AS preferredArmyId,
             preferred_faction AS preferredFaction
@@ -188,6 +189,7 @@ if ($method === 'POST' && $path === '/auth/register') {
                 'id' => $userId,
                 'nickname' => $nickname,
                 'email' => $email,
+                'role' => 'USER',
                 'avatarUrl' => null,
                 'preferredArmyId' => null,
                 'preferredFaction' => null,
@@ -214,6 +216,7 @@ if ($method === 'POST' && $path === '/auth/login') {
             id,
             nickname,
             email,
+            role,
             password_hash,
             avatar_url AS avatarUrl,
             preferred_army_id AS preferredArmyId,

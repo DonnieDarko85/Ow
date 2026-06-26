@@ -22,6 +22,7 @@ export const currentUser: UserProfile = {
   id: 'user-1',
   nickname: 'GeneralBastion',
   email: 'general.bastion@example.com',
+  role: 'ADMIN',
   preferredArmyId: 'army-empire',
   preferredFaction: 'FORCES_OF_FANTASY',
 };

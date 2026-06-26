@@ -118,6 +118,7 @@ export const api = {
           ...currentUser,
           nickname: payload.nickname,
           email: payload.email,
+          role: 'USER',
         },
       };
     }

@@ -28,6 +28,7 @@ export const useAppStore = defineStore('app', {
   }),
   getters: {
     isAuthenticated: (state) => state.user !== null,
+    isAdmin: (state) => state.user?.role === 'ADMIN',
     territoryBySlug: (state) => (slug: string) =>
       state.territories.find((territory) => territory.slug === slug),
   },
