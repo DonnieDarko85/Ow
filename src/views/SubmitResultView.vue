@@ -1,18 +1,20 @@
 <template>
   <div class="page-stack">
-    <SectionHeader
-      eyebrow="Nuovo inserimento"
-      title="Registra un risultato partita"
-      description="Form mobile-first con campi grandi, validazione client e payload pronto per backend PHP."
-    />
+    <div class="submit-result-header">
+      <SectionHeader
+        eyebrow="Nuovo inserimento"
+        title="Registra un risultato partita"
+        description="Form mobile-first con campi grandi, validazione client e payload pronto per backend PHP."
+      />
+    </div>
 
-    <section class="content-grid two-columns">
+    <section class="submit-result-layout">
       <form class="panel-card form-grid" @submit.prevent="handleSubmit">
         <label>
           <span>Territorio</span>
           <select v-model="form.territoryId" required>
             <option value="" disabled>Seleziona un territorio</option>
-            <option v-for="territory in territories" :key="territory.id" :value="territory.id">
+            <option v-for="territory in sortedTerritories" :key="territory.id" :value="territory.id">
               {{ territory.name }}
             </option>
           </select>
@@ -30,11 +32,7 @@
 
         <label>
           <span>Fazione</span>
-          <select v-model="form.ownFaction" required>
-            <option value="FORCES_OF_FANTASY">Forces of Fantasy</option>
-            <option value="RAVAGING_HORDES">Ravaging Hordes</option>
-            <option value="UNDEAD">Undead</option>
-          </select>
+          <input :value="selectedFactionName" :style="selectedFactionStyle" type="text" readonly />
         </label>
 
         <label>
@@ -67,11 +65,6 @@
           <input v-model.number="form.opponentScore" type="number" min="0" required />
         </label>
 
-        <label>
-          <span>Data partita</span>
-          <input v-model="form.playedAt" type="date" required />
-        </label>
-
         <label class="full-span">
           <span>Note</span>
           <textarea v-model="form.note" rows="4" placeholder="Dettagli extra, missione, scenario, anomalia da segnalare..." />
@@ -83,13 +76,13 @@
         <p v-if="loadError" class="field-error full-span">{{ loadError }}</p>
       </form>
 
-      <aside class="panel-card callout-card">
+      <aside class="panel-card callout-card submit-result-callout">
         <p class="eyebrow">Regole di conferma</p>
         <h3>Come il sistema conferma il match</h3>
         <ul class="text-list">
           <li>Entrambi i giocatori devono indicare lo stesso territorio.</li>
           <li>I punteggi devono combaciare in modo speculare.</li>
-          <li>La data deve rientrare nella tolleranza prevista dal backend.</li>
+          <li>La fazione viene dedotta automaticamente in base all armata selezionata.</li>
           <li>I match incoerenti restano fuori dalle statistiche finche non vengono risolti.</li>
         </ul>
         <p v-if="submitMessage" class="success-message">{{ submitMessage }}</p>
@@ -102,6 +95,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import SectionHeader from '@/components/SectionHeader.vue';
+import { useTheme } from '@/composables/useTheme';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 import type { SubmitResultPayload, UserLookup } from '@/types';
@@ -117,16 +111,32 @@ const opponentSearch = ref('');
 const form = reactive<SubmitResultPayload>({
   territoryId: '',
   ownArmyId: user.value?.preferredArmyId ?? '',
-  ownFaction: user.value?.preferredFaction ?? 'FORCES_OF_FANTASY',
   opponentNickname: '',
   ownScore: 0,
   opponentScore: 0,
-  playedAt: new Date().toISOString().slice(0, 10),
   note: '',
 });
 
 const sortedArmies = computed(() =>
   [...armies.value].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
+);
+
+const sortedTerritories = computed(() =>
+  [...territories.value].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
+);
+
+const selectedArmy = computed(() =>
+  armies.value.find((army) => army.id === form.ownArmyId) ?? null,
+);
+
+const { factionBadgeStyle, factionLabel } = useTheme();
+
+const selectedFactionName = computed(() =>
+  selectedArmy.value ? factionLabel(selectedArmy.value.defaultFaction) : '',
+);
+
+const selectedFactionStyle = computed(() =>
+  selectedArmy.value ? factionBadgeStyle(selectedArmy.value.defaultFaction) : undefined,
 );
 
 const availableOpponents = computed(() =>
@@ -156,18 +166,50 @@ onMounted(async () => {
     await appStore.ensureBootstrapped();
   }
 
+  if (territories.value.length === 0 || armies.value.length === 0 || appStore.factions.length === 0) {
+    const [territoriesResult, armiesResult, factionsResult] = await Promise.allSettled([
+      api.getTerritories(),
+      api.getArmies(),
+      api.getFactions(),
+    ]);
+
+    if (territoriesResult.status === 'fulfilled') {
+      appStore.territories = territoriesResult.value;
+    }
+
+    if (armiesResult.status === 'fulfilled') {
+      appStore.armies = armiesResult.value;
+    }
+
+    if (factionsResult.status === 'fulfilled') {
+      appStore.factions = factionsResult.value;
+    }
+  }
+
   try {
     opponents.value = await api.getUsers();
   } catch (error) {
     loadError.value = 'Non sono riuscito a caricare la lista avversari dal server.';
   }
 
-  if (!hasLookupData.value) {
-    loadError.value = 'Non sono riuscito a caricare armate, territori o lista avversari dal server. Verifica gli endpoint /armies, /territories e /users.';
+  const missingLookupParts = [];
+
+  if (territories.value.length === 0) {
+    missingLookupParts.push('territori');
+  }
+
+  if (sortedArmies.value.length === 0) {
+    missingLookupParts.push('armate');
+  }
+
+  if (availableOpponents.value.length === 0) {
+    missingLookupParts.push('avversari');
+  }
+
+  if (missingLookupParts.length > 0) {
+    loadError.value = `Non sono riuscito a caricare: ${missingLookupParts.join(', ')}.`;
   } else {
-    if (!loadError.value) {
-      loadError.value = '';
-    }
+    loadError.value = '';
 
     if (!form.ownArmyId && sortedArmies.value[0]) {
       form.ownArmyId = sortedArmies.value[0].id;
@@ -180,7 +222,11 @@ async function handleSubmit() {
   submitMessage.value = '';
 
   try {
-    const result = await api.submitResult(form);
+    const result = await api.submitResult({
+      ...form,
+      ownFaction: selectedArmy.value?.defaultFaction,
+      playedAt: '',
+    });
     submitMessage.value = result.message;
   } finally {
     isSubmitting.value = false;

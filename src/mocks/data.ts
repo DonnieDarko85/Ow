@@ -1,4 +1,4 @@
-import type { AppConfig, Army, MatchSummary, Territory, UserProfile } from '@/types';
+import type { AppConfig, Army, FactionDefinition, MatchSummary, Territory, UserProfile } from '@/types';
 
 export const appConfig: AppConfig = {
   appName: 'Sun-Tzu Secrets Play Portal',
@@ -16,6 +16,27 @@ export const armies: Army[] = [
   { id: 'army-orcs', name: 'Orc & Goblin Tribes', slug: 'orc-goblin-tribes', defaultFaction: 'RAVAGING_HORDES' },
   { id: 'army-tomb-kings', name: 'Tomb Kings of Khemri', slug: 'tomb-kings-of-khemri', defaultFaction: 'UNDEAD' },
   { id: 'army-dwarfs', name: 'Dwarfen Mountain Holds', slug: 'dwarfen-mountain-holds', defaultFaction: 'FORCES_OF_FANTASY' },
+];
+
+export const factions: FactionDefinition[] = [
+  {
+    id: 'faa16347-6d2d-4b44-8c29-5906ec9a8f01',
+    code: 'FORCES_OF_FANTASY',
+    name: 'Forces of Fantasy',
+    color: '#2f6fdd',
+  },
+  {
+    id: 'faa16347-6d2d-4b44-8c29-5906ec9a8f02',
+    code: 'RAVAGING_HORDES',
+    name: 'Ravaging Hordes',
+    color: '#b3181f',
+  },
+  {
+    id: 'faa16347-6d2d-4b44-8c29-5906ec9a8f03',
+    code: 'UNDEAD',
+    name: 'Undead',
+    color: '#777777',
+  },
 ];
 
 export const currentUser: UserProfile = {

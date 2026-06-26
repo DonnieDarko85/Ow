@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia';
 import { api } from '@/services/api';
-import type { AppConfig, Army, MatchSummary, RegisterPayload, Territory, UserProfile } from '@/types';
+import type { AppConfig, Army, FactionDefinition, MatchSummary, RegisterPayload, Territory, UserProfile } from '@/types';
 
 interface AppState {
   config: AppConfig | null;
   user: UserProfile | null;
+  useThreeDTheme: boolean;
   armies: Army[];
+  factions: FactionDefinition[];
   territories: Territory[];
   recentMatches: MatchSummary[];
   isLoading: boolean;
@@ -14,12 +16,29 @@ interface AppState {
 }
 
 let bootstrapPromise: Promise<void> | null = null;
+const THREE_D_THEME_STORAGE_KEY = 'ow-use-three-d-theme';
+
+function readThreeDThemePreference() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const storedValue = window.localStorage.getItem(THREE_D_THEME_STORAGE_KEY);
+
+  if (storedValue === null) {
+    return false;
+  }
+
+  return storedValue === 'true';
+}
 
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
     config: null,
     user: null,
+    useThreeDTheme: readThreeDThemePreference(),
     armies: [],
+    factions: [],
     territories: [],
     recentMatches: [],
     isLoading: false,
@@ -29,6 +48,8 @@ export const useAppStore = defineStore('app', {
   getters: {
     isAuthenticated: (state) => state.user !== null,
     isAdmin: (state) => state.user?.role === 'ADMIN',
+    factionByCode: (state) => (code: FactionDefinition['code']) =>
+      state.factions.find((faction) => faction.code === code),
     territoryBySlug: (state) => (slug: string) =>
       state.territories.find((territory) => territory.slug === slug),
   },
@@ -42,11 +63,12 @@ export const useAppStore = defineStore('app', {
           api.getConfig(),
           api.getCurrentUser(),
           api.getArmies(),
+          api.getFactions(),
           api.getTerritories(),
           api.getRecentMatches(),
         ]);
 
-        const [configResult, userResult, armiesResult, territoriesResult, recentMatchesResult] = results;
+        const [configResult, userResult, armiesResult, factionsResult, territoriesResult, recentMatchesResult] = results;
 
         if (configResult.status === 'fulfilled') {
           this.config = configResult.value;
@@ -66,6 +88,13 @@ export const useAppStore = defineStore('app', {
         } else {
           this.armies = [];
           this.bootstrapErrors.push('armies');
+        }
+
+        if (factionsResult.status === 'fulfilled') {
+          this.factions = factionsResult.value;
+        } else {
+          this.factions = [];
+          this.bootstrapErrors.push('factions');
         }
 
         if (territoriesResult.status === 'fulfilled') {
@@ -119,11 +148,21 @@ export const useAppStore = defineStore('app', {
         this.isLoading = false;
       }
     },
+    setThreeDTheme(enabled: boolean) {
+      this.useThreeDTheme = enabled;
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(THREE_D_THEME_STORAGE_KEY, String(enabled));
+      }
+    },
     logout() {
       this.user = null;
       this.armies = [];
+      this.factions = [];
       this.territories = [];
       this.recentMatches = [];
+      this.hasBootstrapped = false;
+      this.bootstrapErrors = [];
     },
   },
 });

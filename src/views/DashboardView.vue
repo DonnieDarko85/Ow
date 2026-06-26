@@ -6,14 +6,14 @@
       <article class="stat-card faction-stat-card">
         <p class="eyebrow">Fazione in vantaggio</p>
         <div class="faction-stat-body">
-          <div>
-            <strong>{{ leadingFaction }}</strong>
-          </div>
           <div
             class="faction-pie"
             :style="{ background: factionPieBackground }"
             aria-label="Distribuzione del controllo tra le tre fazioni"
           ></div>
+          <p class="faction-stat-label" :style="leadingFactionColor ? { color: leadingFactionColor } : undefined">
+            {{ leadingFaction ?? 'Equilibrio tra le fazioni' }}
+          </p>
         </div>
       </article>
     </section>
@@ -47,13 +47,8 @@ import { useAppStore } from '@/stores/app';
 
 const appStore = useAppStore();
 const { recentMatches, territories } = storeToRefs(appStore);
-const { factionLabel } = useTheme();
+const { factionColor, factionLabel } = useTheme();
 const factionOrder: Faction[] = ['FORCES_OF_FANTASY', 'RAVAGING_HORDES', 'UNDEAD'];
-const factionColors: Record<Faction, string> = {
-  FORCES_OF_FANTASY: '#f5f5f5',
-  RAVAGING_HORDES: '#b3181f',
-  UNDEAD: '#777777',
-};
 
 const confirmedBattles = computed(() =>
   territories.value.reduce((sum, territory) => sum + territory.stats.confirmedBattles, 0),
@@ -84,17 +79,36 @@ const factionDistribution = computed(() => {
 });
 
 const leadingFaction = computed(() => {
-  const leading = factionDistribution.value.reduce((best, current) =>
-    current.percentage > best.percentage ? current : best,
-  );
-  return factionLabel(leading.faction);
+  const sorted = [...factionDistribution.value].sort((a, b) => b.percentage - a.percentage);
+  const [first, second] = sorted;
+
+  if (!first || !second) {
+    return null;
+  }
+
+  if (Math.abs(first.percentage - second.percentage) < 0.001) {
+    return null;
+  }
+
+  return factionLabel(first.faction);
+});
+
+const leadingFactionColor = computed(() => {
+  const sorted = [...factionDistribution.value].sort((a, b) => b.percentage - a.percentage);
+  const [first, second] = sorted;
+
+  if (!first || !second || Math.abs(first.percentage - second.percentage) < 0.001) {
+    return null;
+  }
+
+  return factionColor(first.faction);
 });
 
 const factionPieBackground = computed(() => {
   let currentStop = 0;
   const segments = factionDistribution.value.map(({ faction, percentage }) => {
     const nextStop = currentStop + percentage;
-    const segment = `${factionColors[faction]} ${currentStop}% ${nextStop}%`;
+    const segment = `${factionColor(faction)} ${currentStop}% ${nextStop}%`;
     currentStop = nextStop;
     return segment;
   });

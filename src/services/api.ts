@@ -1,5 +1,5 @@
-import { appConfig, armies, currentUser, recentMatches, territories } from '@/mocks/data';
-import type { AppConfig, Army, AuthResult, MatchSummary, MeResult, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
+import { appConfig, armies, currentUser, factions, recentMatches, territories } from '@/mocks/data';
+import type { AppConfig, Army, AuthResult, FactionDefinition, MatchSummary, MeResult, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const apiBaseUrls = configuredApiBaseUrl
@@ -68,6 +68,14 @@ export const api = {
     }
 
     const result = await request<Army[]>('/armies');
+    return [...result].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+  },
+  async getFactions(): Promise<FactionDefinition[]> {
+    if (apiBaseUrls[0] === '') {
+      return factions;
+    }
+
+    const result = await request<FactionDefinition[]>('/factions');
     return [...result].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
   },
   async getTerritories(): Promise<Territory[]> {

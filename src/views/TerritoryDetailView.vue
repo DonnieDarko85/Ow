@@ -29,7 +29,7 @@
               <strong>{{ entry.percentage }}%</strong>
             </div>
             <div class="progress-track">
-              <div class="progress-fill" :class="factionClass(entry.faction)" :style="{ width: `${entry.percentage}%` }" />
+              <div class="progress-fill" :style="{ ...factionFillStyle(entry.faction), width: `${entry.percentage}%` }" />
             </div>
           </div>
         </div>
@@ -72,7 +72,7 @@ import { useAppStore } from '@/stores/app';
 const route = useRoute();
 const appStore = useAppStore();
 const { recentMatches, territories } = storeToRefs(appStore);
-const { factionClass, factionLabel } = useTheme();
+const { factionFillStyle, factionLabel } = useTheme();
 
 const territory = computed(() => appStore.territoryBySlug(String(route.params.slug)));
 
@@ -80,4 +80,3 @@ const territoryMatches = computed(() =>
   recentMatches.value.filter((match) => match.territorySlug === route.params.slug),
 );
 </script>
-

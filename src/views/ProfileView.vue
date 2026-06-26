@@ -32,14 +32,21 @@
           <label>
             <span>Fazione preferita</span>
             <select :value="user?.preferredFaction">
-              <option value="FORCES_OF_FANTASY">Forces of Fantasy</option>
-              <option value="RAVAGING_HORDES">Ravaging Hordes</option>
-              <option value="UNDEAD">Undead</option>
+              <option v-for="faction in factions" :key="faction.id" :value="faction.code">
+                {{ faction.name }}
+              </option>
             </select>
           </label>
           <label>
             <span>Nuova password</span>
             <input type="password" placeholder="Aggiorna password" />
+          </label>
+          <label class="theme-toggle full-span">
+            <span class="theme-toggle-copy">
+              <strong>Grafica 3d</strong>
+              <small class="muted-copy">Attiva la cornice decorata ispirata al layout Sun-Tzu Secrets.</small>
+            </span>
+            <input :checked="useThreeDTheme" type="checkbox" @change="handleThemeToggle" />
           </label>
         </div>
 
@@ -66,8 +73,12 @@ import SectionHeader from '@/components/SectionHeader.vue';
 import { useAppStore } from '@/stores/app';
 
 const appStore = useAppStore();
-const { armies, user } = storeToRefs(appStore);
+const { armies, factions, user, useThreeDTheme } = storeToRefs(appStore);
 
 const initials = computed(() => (user.value?.nickname ?? 'OW').slice(0, 2).toUpperCase());
-</script>
 
+const handleThemeToggle = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  appStore.setThreeDTheme(target.checked);
+};
+</script>

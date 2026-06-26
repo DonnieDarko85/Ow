@@ -1,5 +1,5 @@
 <template>
-  <span class="faction-badge" :class="factionClass(faction)">
+  <span class="faction-badge" :style="factionBadgeStyle(faction)">
     {{ factionLabel(faction) }}
   </span>
 </template>
@@ -12,6 +12,5 @@ defineProps<{
   faction: Faction;
 }>();
 
-const { factionClass, factionLabel } = useTheme();
+const { factionBadgeStyle, factionLabel } = useTheme();
 </script>
-

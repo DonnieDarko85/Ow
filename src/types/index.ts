@@ -2,10 +2,18 @@ export type Faction = 'RAVAGING_HORDES' | 'FORCES_OF_FANTASY' | 'UNDEAD';
 export type MatchStatus = 'PENDING' | 'CONFIRMED' | 'CONFLICT' | 'CANCELLED';
 export type UserRole = 'USER' | 'ADMIN';
 
+export interface FactionDefinition {
+  id: string;
+  code: Faction;
+  name: string;
+  color: string;
+}
+
 export interface Army {
   id: string;
   name: string;
   slug: string;
+  factionId?: string;
   defaultFaction: Faction;
 }
 
@@ -67,11 +75,11 @@ export interface MatchSummary {
 export interface SubmitResultPayload {
   territoryId: string;
   ownArmyId: string;
-  ownFaction: Faction;
+  ownFaction?: Faction;
   opponentNickname: string;
   ownScore: number;
   opponentScore: number;
-  playedAt: string;
+  playedAt?: string;
   note: string;
 }
 

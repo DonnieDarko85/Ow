@@ -243,18 +243,72 @@ if ($method === 'POST' && $path === '/auth/login') {
 }
 
 if ($method === 'GET' && $path === '/armies') {
-    $stmt = $pdo->query('
-        SELECT
-            id,
-            name,
-            slug,
-            default_faction AS defaultFaction
-        FROM armies
-        WHERE is_active = 1
-        ORDER BY sort_order, name
-    ');
+    if (tableExists($pdo, 'factions') && columnExists($pdo, 'armies', 'faction_id')) {
+        $stmt = $pdo->query('
+            SELECT
+                a.id,
+                a.name,
+                a.slug,
+                a.faction_id AS factionId,
+                COALESCE(f.code, a.default_faction) AS defaultFaction
+            FROM armies a
+            LEFT JOIN factions f ON f.id = a.faction_id
+            WHERE a.is_active = 1
+            ORDER BY a.sort_order, a.name
+        ');
+    } else {
+        $stmt = $pdo->query('
+            SELECT
+                id,
+                name,
+                slug,
+                NULL AS factionId,
+                default_faction AS defaultFaction
+            FROM armies
+            WHERE is_active = 1
+            ORDER BY sort_order, name
+        ');
+    }
 
     jsonResponse($stmt->fetchAll());
+}
+
+if ($method === 'GET' && $path === '/factions') {
+    if (tableExists($pdo, 'factions')) {
+        $stmt = $pdo->query('
+            SELECT
+                id,
+                code,
+                name,
+                color_hex AS color
+            FROM factions
+            WHERE is_active = 1
+            ORDER BY sort_order, name
+        ');
+
+        jsonResponse($stmt->fetchAll());
+    }
+
+    jsonResponse([
+        [
+            'id' => 'fallback-faction-1',
+            'code' => 'FORCES_OF_FANTASY',
+            'name' => 'Forces of Fantasy',
+            'color' => '#2f6fdd',
+        ],
+        [
+            'id' => 'fallback-faction-2',
+            'code' => 'RAVAGING_HORDES',
+            'name' => 'Ravaging Hordes',
+            'color' => '#b3181f',
+        ],
+        [
+            'id' => 'fallback-faction-3',
+            'code' => 'UNDEAD',
+            'name' => 'Undead',
+            'color' => '#777777',
+        ],
+    ]);
 }
 
 if ($method === 'GET' && $path === '/users') {
@@ -287,16 +341,14 @@ if ($method === 'GET' && $path === '/territories') {
     $territories = [];
 
     foreach ($stmt->fetchAll() as $row) {
-        $territories[] = [
-            ...$row,
-            'stats' => [
-                'confirmedBattles' => 0,
-                'pendingBattles' => 0,
-                'dominantFaction' => 'FORCES_OF_FANTASY',
-                'factionControl' => [],
-                'armyControl' => [],
-            ],
+        $row['stats'] = [
+            'confirmedBattles' => 0,
+            'pendingBattles' => 0,
+            'dominantFaction' => 'FORCES_OF_FANTASY',
+            'factionControl' => [],
+            'armyControl' => [],
         ];
+        $territories[] = $row;
     }
 
     jsonResponse($territories);
@@ -326,13 +378,12 @@ if ($method === 'POST' && $path === '/matches/results') {
 
     $territoryId = trim((string) ($payload['territoryId'] ?? ''));
     $ownArmyId = trim((string) ($payload['ownArmyId'] ?? ''));
-    $ownFaction = trim((string) ($payload['ownFaction'] ?? ''));
     $opponentNickname = trim((string) ($payload['opponentNickname'] ?? ''));
     $ownScore = (int) ($payload['ownScore'] ?? -1);
     $opponentScore = (int) ($payload['opponentScore'] ?? -1);
     $playedAt = trim((string) ($payload['playedAt'] ?? ''));
 
-    if ($territoryId === '' || $ownArmyId === '' || $ownFaction === '' || $opponentNickname === '') {
+    if ($territoryId === '' || $ownArmyId === '' || $opponentNickname === '') {
         jsonResponse(['error' => 'Compila tutti i campi obbligatori.'], 422);
     }
 
@@ -357,6 +408,31 @@ if ($method === 'POST' && $path === '/matches/results') {
     if ((string) $opponent['id'] === $currentUserId) {
         jsonResponse(['error' => 'Non puoi registrare una partita contro te stesso.'], 422);
     }
+
+    if (tableExists($pdo, 'factions') && columnExists($pdo, 'armies', 'faction_id')) {
+        $armyStmt = $pdo->prepare('
+            SELECT COALESCE(f.code, a.default_faction) AS factionCode
+            FROM armies a
+            LEFT JOIN factions f ON f.id = a.faction_id
+            WHERE a.id = :id
+            LIMIT 1
+        ');
+    } else {
+        $armyStmt = $pdo->prepare('
+            SELECT default_faction AS factionCode
+            FROM armies
+            WHERE id = :id
+            LIMIT 1
+        ');
+    }
+    $armyStmt->execute(['id' => $ownArmyId]);
+    $army = $armyStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $army || ! is_string($army['factionCode']) || $army['factionCode'] === '') {
+        jsonResponse(['error' => 'Armata non valida o fazione non configurata.'], 422);
+    }
+
+    $ownFaction = (string) $army['factionCode'];
 
     $matchId = uuidV4();
     $resultId = uuidV4();
@@ -514,4 +590,36 @@ function firstExistingPath(array $candidates): ?string
     }
 
     return null;
+}
+
+function tableExists(PDO $pdo, string $tableName): bool
+{
+    static $cache = [];
+    $key = $tableName;
+
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    $stmt = $pdo->prepare('SHOW TABLES LIKE :table_name');
+    $stmt->execute(['table_name' => $tableName]);
+    $cache[$key] = (bool) $stmt->fetchColumn();
+
+    return $cache[$key];
+}
+
+function columnExists(PDO $pdo, string $tableName, string $columnName): bool
+{
+    static $cache = [];
+    $key = sprintf('%s.%s', $tableName, $columnName);
+
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM `$tableName` LIKE :column_name");
+    $stmt->execute(['column_name' => $columnName]);
+    $cache[$key] = (bool) $stmt->fetchColumn();
+
+    return $cache[$key];
 }
