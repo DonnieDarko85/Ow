@@ -45,10 +45,13 @@ body,
 #app {
   min-height: 100%;
   margin: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {
@@ -688,8 +691,19 @@ button {
   gap: 0.75rem;
 }
 
+.match-player-card.is-opponent .match-player-head {
+  flex-direction: row-reverse;
+}
+
 .match-player-head strong {
   font-size: 1rem;
+}
+
+.match-player-vp {
+  color: inherit;
+  font-size: 0.9rem;
+  opacity: 0.78;
+  white-space: nowrap;
 }
 
 .match-player-score {
@@ -966,13 +980,20 @@ textarea {
 }
 
 .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   padding: 0.95rem 1.2rem;
   border: 0;
   border-radius: 16px;
+  background-color: var(--accent);
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #fff;
   font-weight: 700;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .primary-button:disabled {
@@ -999,6 +1020,9 @@ textarea {
   place-items: center;
   min-height: 100vh;
   padding: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .auth-form-card {
@@ -1110,11 +1134,17 @@ textarea {
     z-index: 20;
   }
 
-  .mobile-nav-link {
-    text-align: center;
-    padding: 0.8rem 0.5rem;
-    border-radius: 16px;
-    border: 1px solid transparent;
+.mobile-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+  padding: 0.8rem 0.5rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   .mobile-nav-button {
@@ -1150,6 +1180,22 @@ textarea {
 }
 
 @media (max-width: 720px) {
+  .app-root,
+  .app-shell,
+  .shell-content,
+  .shell-main,
+  .content-frame,
+  .auth-layout,
+  .auth-form-card,
+  .panel-card,
+  .mobile-nav,
+  .submit-result-layout,
+  .match-duel {
+    max-width: 100%;
+    overflow-x: hidden;
+    min-width: 0;
+  }
+
   .shell-topbar {
     align-items: start;
     flex-direction: column;
@@ -1204,6 +1250,10 @@ textarea {
 
   .match-player-head {
     align-items: center;
+  }
+
+  .match-player-card.is-opponent .match-player-head {
+    flex-direction: row;
   }
 
   .match-separator {

@@ -12,6 +12,7 @@
         <div class="match-player-card" :style="playerStyle(leftSide(match).faction)">
           <div class="match-player-head">
             <strong>{{ leftSide(match).player }}</strong>
+            <span class="match-player-vp">({{ leftSide(match).victoryPoints }})</span>
           </div>
           <p class="match-player-meta">({{ leftSide(match).army }} - {{ factionLabel(leftSide(match).faction) }})</p>
         </div>
@@ -23,6 +24,7 @@
         <div class="match-player-card is-opponent" :style="playerStyle(rightSide(match).faction)">
           <div class="match-player-head">
             <strong>{{ rightSide(match).player }}</strong>
+            <span class="match-player-vp">({{ rightSide(match).victoryPoints }})</span>
           </div>
           <p class="match-player-meta">({{ rightSide(match).army }} - {{ factionLabel(rightSide(match).faction) }})</p>
         </div>
@@ -36,6 +38,7 @@ import { storeToRefs } from 'pinia';
 import type { MatchSummary } from '@/types';
 import { useTheme } from '@/composables/useTheme';
 import { useAppStore } from '@/stores/app';
+import { battleOutcomeLabel as getBattleOutcomeLabel } from '@/utils/matchScoring';
 
 defineProps<{
   matches: MatchSummary[];
@@ -47,39 +50,17 @@ const { factionBadgeStyle, factionLabel } = useTheme();
 
 const leftSide = (match: MatchSummary) =>
   user.value?.nickname === match.playerB
-    ? { player: match.playerB, army: match.armyB, faction: match.factionB, score: match.scoreB }
-    : { player: match.playerA, army: match.armyA, faction: match.factionA, score: match.scoreA };
+    ? { player: match.playerB, army: match.armyB, faction: match.factionB, score: match.scoreB, victoryPoints: match.victoryPointsB }
+    : { player: match.playerA, army: match.armyA, faction: match.factionA, score: match.scoreA, victoryPoints: match.victoryPointsA };
 
 const rightSide = (match: MatchSummary) =>
   user.value?.nickname === match.playerB
-    ? { player: match.playerA, army: match.armyA, faction: match.factionA, score: match.scoreA }
-    : { player: match.playerB, army: match.armyB, faction: match.factionB, score: match.scoreB };
+    ? { player: match.playerA, army: match.armyA, faction: match.factionA, score: match.scoreA, victoryPoints: match.victoryPointsA }
+    : { player: match.playerB, army: match.armyB, faction: match.factionB, score: match.scoreB, victoryPoints: match.victoryPointsB };
 
 const playerStyle = (faction: MatchSummary['factionA']) => factionBadgeStyle(faction);
 
 const battleOutcomeLabel = (match: MatchSummary) => {
-  const left = leftSide(match).score;
-  const right = rightSide(match).score;
-
-  if (left === right) {
-    return 'Pareggio';
-  }
-
-  const isWin = left > right;
-  const winningScore = Math.max(left, right);
-
-  if (winningScore === 4) {
-    return isWin ? 'Vittoria Minore' : 'Sconfitta Minore';
-  }
-
-  if (winningScore === 5) {
-    return isWin ? 'Vittoria Maggiore' : 'Sconfitta Maggiore';
-  }
-
-  if (winningScore === 6) {
-    return isWin ? 'Massacro' : 'Sconfitta Totale';
-  }
-
-  return isWin ? 'Vittoria' : 'Sconfitta';
+  return getBattleOutcomeLabel(leftSide(match).score, rightSide(match).score);
 };
 </script>

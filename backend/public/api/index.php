@@ -397,9 +397,11 @@ if ($method === 'GET' && $path === '/matches/recent') {
             (int) $row['victoryScoreB']
         );
 
-        unset($row['victoryScoreA'], $row['victoryScoreB']);
         $row['scoreA'] = $matchPoints['playerA'];
         $row['scoreB'] = $matchPoints['playerB'];
+        $row['victoryPointsA'] = (int) $row['victoryScoreA'];
+        $row['victoryPointsB'] = (int) $row['victoryScoreB'];
+        unset($row['victoryScoreA'], $row['victoryScoreB']);
         $matches[] = $row;
     }
 
