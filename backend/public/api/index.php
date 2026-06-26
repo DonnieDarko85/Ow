@@ -355,20 +355,140 @@ if ($method === 'GET' && $path === '/territories') {
 }
 
 if ($method === 'GET' && $path === '/matches/recent') {
-    $stmt = $pdo->query('
+    $stmt = $pdo->query("
         SELECT
             m.id,
-            m.played_at AS playedAt,
+            COALESCE(m.played_at, DATE(m.confirmed_at), DATE(m.created_at)) AS playedAt,
             m.status,
             t.slug AS territorySlug,
-            t.name AS territoryName
+            t.name AS territoryName,
+            playerA.nickname AS playerA,
+            armyA.name AS armyA,
+            resultA.own_faction AS factionA,
+            resultA.own_score AS victoryScoreA,
+            playerB.nickname AS playerB,
+            armyB.name AS armyB,
+            resultB.own_faction AS factionB,
+            resultB.own_score AS victoryScoreB
         FROM matches m
         INNER JOIN territories t ON t.id = m.territory_id
-        ORDER BY m.played_at DESC, m.created_at DESC
+        INNER JOIN users playerA ON playerA.id = m.player_a_id
+        INNER JOIN users playerB ON playerB.id = m.player_b_id
+        INNER JOIN match_results resultA
+            ON resultA.match_id = m.id
+           AND resultA.submitted_by_user_id = m.player_a_id
+           AND resultA.status = 'CONFIRMED'
+        INNER JOIN match_results resultB
+            ON resultB.match_id = m.id
+           AND resultB.submitted_by_user_id = m.player_b_id
+           AND resultB.status = 'CONFIRMED'
+        INNER JOIN armies armyA ON armyA.id = resultA.own_army_id
+        INNER JOIN armies armyB ON armyB.id = resultB.own_army_id
+        WHERE m.status = 'CONFIRMED'
+        ORDER BY COALESCE(m.played_at, DATE(m.confirmed_at), DATE(m.created_at)) DESC, m.confirmed_at DESC, m.created_at DESC
         LIMIT 20
-    ');
+    ");
+
+    $matches = [];
+
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $matchPoints = calculateMatchPoints(
+            (int) $row['victoryScoreA'],
+            (int) $row['victoryScoreB']
+        );
+
+        unset($row['victoryScoreA'], $row['victoryScoreB']);
+        $row['scoreA'] = $matchPoints['playerA'];
+        $row['scoreB'] = $matchPoints['playerB'];
+        $matches[] = $row;
+    }
+
+    jsonResponse($matches);
+}
+
+if ($method === 'GET' && $path === '/matches/pending-for-me') {
+    if (! isset($_SESSION['user_id'])) {
+        jsonResponse(['error' => 'Autenticazione richiesta.'], 401);
+    }
+
+    $currentUserId = (string) $_SESSION['user_id'];
+
+    $stmt = $pdo->prepare("
+        SELECT
+            m.id AS matchId,
+            m.territory_id AS territoryId,
+            t.name AS territoryName,
+            opponent.id AS opponentUserId,
+            opponent.nickname AS opponentNickname,
+            mr.own_army_id AS opponentArmyId,
+            army.name AS opponentArmyName,
+            mr.own_faction AS opponentFaction,
+            mr.own_score AS opponentScore,
+            mr.opponent_score AS yourScore,
+            COALESCE(mr.note, '') AS note,
+            mr.created_at AS createdAt
+        FROM matches m
+        INNER JOIN territories t ON t.id = m.territory_id
+        INNER JOIN match_results mr
+            ON mr.match_id = m.id
+           AND mr.opponent_user_id = :current_user_id
+           AND mr.status = 'PENDING'
+        INNER JOIN users opponent ON opponent.id = mr.submitted_by_user_id
+        INNER JOIN armies army ON army.id = mr.own_army_id
+        LEFT JOIN match_results my_result
+            ON my_result.match_id = m.id
+           AND my_result.submitted_by_user_id = :current_user_id
+        WHERE m.status = 'PENDING'
+          AND my_result.id IS NULL
+        ORDER BY mr.created_at DESC
+        LIMIT 20
+    ");
+    $stmt->execute(['current_user_id' => $currentUserId]);
 
     jsonResponse($stmt->fetchAll());
+}
+
+if ($method === 'GET' && $path === '/matches/pending-by-me') {
+    if (! isset($_SESSION['user_id'])) {
+        jsonResponse(['error' => 'Autenticazione richiesta.'], 401);
+    }
+
+    $currentUserId = (string) $_SESSION['user_id'];
+
+    $stmt = $pdo->prepare("
+        SELECT
+            m.id AS matchId,
+            m.territory_id AS territoryId,
+            t.name AS territoryName,
+            opponent.id AS opponentUserId,
+            opponent.nickname AS opponentNickname,
+            mr.own_army_id AS ownArmyId,
+            army.name AS ownArmyName,
+            mr.own_faction AS ownFaction,
+            mr.own_score AS ownScore,
+            mr.opponent_score AS opponentScore,
+            COALESCE(mr.note, '') AS note,
+            mr.created_at AS createdAt,
+            mr.status AS status
+        FROM matches m
+        INNER JOIN territories t ON t.id = m.territory_id
+        INNER JOIN match_results mr
+            ON mr.match_id = m.id
+           AND mr.submitted_by_user_id = :current_user_id
+           AND mr.status = 'PENDING'
+        INNER JOIN users opponent ON opponent.id = mr.opponent_user_id
+        INNER JOIN armies army ON army.id = mr.own_army_id
+        LEFT JOIN match_results opponent_result
+            ON opponent_result.match_id = m.id
+           AND opponent_result.submitted_by_user_id = mr.opponent_user_id
+        WHERE m.status = 'PENDING'
+          AND opponent_result.id IS NULL
+        ORDER BY mr.created_at DESC
+        LIMIT 20
+    ");
+    $stmt->execute(['current_user_id' => $currentUserId]);
+
+    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
 if ($method === 'POST' && $path === '/matches/results') {
@@ -434,12 +554,222 @@ if ($method === 'POST' && $path === '/matches/results') {
 
     $ownFaction = (string) $army['factionCode'];
 
-    $matchId = uuidV4();
-    $resultId = uuidV4();
-
     $pdo->beginTransaction();
 
     try {
+        $candidateStmt = $pdo->prepare("
+            SELECT
+                m.id AS matchId,
+                existing_result.id AS existingResultId,
+                existing_result.own_score AS existingOwnScore,
+                existing_result.opponent_score AS existingOpponentScore,
+                existing_result.status AS existingResultStatus
+            FROM matches m
+            INNER JOIN match_results existing_result
+                ON existing_result.match_id = m.id
+               AND existing_result.submitted_by_user_id = :opponent_user_id
+               AND existing_result.opponent_user_id = :current_user_id
+            LEFT JOIN match_results current_result
+                ON current_result.match_id = m.id
+               AND current_result.submitted_by_user_id = :current_user_id
+            WHERE m.status = 'PENDING'
+              AND existing_result.status = 'PENDING'
+              AND current_result.id IS NULL
+              AND m.territory_id = :territory_id
+              AND (
+                    (m.player_a_id = :current_user_id AND m.player_b_id = :opponent_user_id)
+                 OR (m.player_a_id = :opponent_user_id AND m.player_b_id = :current_user_id)
+              )
+            ORDER BY m.created_at DESC
+            FOR UPDATE
+        ");
+        $candidateStmt->execute([
+            'current_user_id' => $currentUserId,
+            'opponent_user_id' => $opponent['id'],
+            'territory_id' => $territoryId,
+        ]);
+        $pendingCandidates = $candidateStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $mirroredCandidate = null;
+
+        foreach ($pendingCandidates as $candidate) {
+            if (
+                (int) $candidate['existingOwnScore'] === $opponentScore
+                && (int) $candidate['existingOpponentScore'] === $ownScore
+            ) {
+                $mirroredCandidate = $candidate;
+                break;
+            }
+        }
+
+        $insertResultStmt = $pdo->prepare('
+            INSERT INTO match_results (
+                id,
+                match_id,
+                submitted_by_user_id,
+                opponent_user_id,
+                own_army_id,
+                own_faction,
+                own_score,
+                opponent_score,
+                status,
+                note,
+                created_at,
+                updated_at
+            ) VALUES (
+                :id,
+                :match_id,
+                :submitted_by_user_id,
+                :opponent_user_id,
+                :own_army_id,
+                :own_faction,
+                :own_score,
+                :opponent_score,
+                :status,
+                :note,
+                NOW(),
+                NOW()
+            )
+        ');
+
+        if ($mirroredCandidate !== null) {
+            $insertResultStmt->execute([
+                'id' => uuidV4(),
+                'match_id' => $mirroredCandidate['matchId'],
+                'submitted_by_user_id' => $currentUserId,
+                'opponent_user_id' => $opponent['id'],
+                'own_army_id' => $ownArmyId,
+                'own_faction' => $ownFaction,
+                'own_score' => $ownScore,
+                'opponent_score' => $opponentScore,
+                'status' => 'CONFIRMED',
+                'note' => (string) ($payload['note'] ?? ''),
+            ]);
+
+            $updateExistingResultStmt = $pdo->prepare('
+                UPDATE match_results
+                SET status = :status,
+                    updated_at = NOW()
+                WHERE id = :id
+            ');
+            $updateExistingResultStmt->execute([
+                'status' => 'CONFIRMED',
+                'id' => $mirroredCandidate['existingResultId'],
+            ]);
+
+            $matchPoints = calculateMatchPoints($ownScore, $opponentScore);
+            $winnerUserId = null;
+
+            if ($matchPoints['playerA'] > $matchPoints['playerB']) {
+                $winnerUserId = $currentUserId;
+            } elseif ($matchPoints['playerB'] > $matchPoints['playerA']) {
+                $winnerUserId = (string) $opponent['id'];
+            }
+
+            $updateMatchStmt = $pdo->prepare('
+                UPDATE matches
+                SET status = :status,
+                    confirmed_at = NOW(),
+                    winner_user_id = :winner_user_id,
+                    updated_at = NOW()
+                WHERE id = :id
+            ');
+            $updateMatchStmt->execute([
+                'status' => 'CONFIRMED',
+                'winner_user_id' => $winnerUserId,
+                'id' => $mirroredCandidate['matchId'],
+            ]);
+
+            $pdo->commit();
+
+            jsonResponse([
+                'message' => 'Match confermato correttamente: i risultati dei due giocatori coincidono.',
+            ], 201);
+        }
+
+        if ($pendingCandidates !== []) {
+            $conflictCandidate = $pendingCandidates[0];
+
+            $insertResultStmt->execute([
+                'id' => uuidV4(),
+                'match_id' => $conflictCandidate['matchId'],
+                'submitted_by_user_id' => $currentUserId,
+                'opponent_user_id' => $opponent['id'],
+                'own_army_id' => $ownArmyId,
+                'own_faction' => $ownFaction,
+                'own_score' => $ownScore,
+                'opponent_score' => $opponentScore,
+                'status' => 'CONFLICT',
+                'note' => (string) ($payload['note'] ?? ''),
+            ]);
+
+            $updateConflictResultsStmt = $pdo->prepare('
+                UPDATE match_results
+                SET status = :status,
+                    updated_at = NOW()
+                WHERE match_id = :match_id
+            ');
+            $updateConflictResultsStmt->execute([
+                'status' => 'CONFLICT',
+                'match_id' => $conflictCandidate['matchId'],
+            ]);
+
+            $updateConflictMatchStmt = $pdo->prepare('
+                UPDATE matches
+                SET status = :status,
+                    updated_at = NOW()
+                WHERE id = :id
+            ');
+            $updateConflictMatchStmt->execute([
+                'status' => 'CONFLICT',
+                'id' => $conflictCandidate['matchId'],
+            ]);
+
+            $pdo->commit();
+
+            jsonResponse([
+                'message' => 'Risultato registrato, ma i due inserimenti non coincidono: il match e ora in conflitto.',
+            ], 201);
+        }
+
+        $duplicatePendingStmt = $pdo->prepare("
+            SELECT m.id
+            FROM matches m
+            INNER JOIN match_results mr
+                ON mr.match_id = m.id
+               AND mr.submitted_by_user_id = :current_user_id
+               AND mr.opponent_user_id = :opponent_user_id
+            WHERE m.status = 'PENDING'
+              AND mr.status = 'PENDING'
+              AND m.territory_id = :territory_id
+              AND mr.own_army_id = :own_army_id
+              AND mr.own_score = :own_score
+              AND mr.opponent_score = :opponent_score
+              AND (
+                    (m.player_a_id = :current_user_id AND m.player_b_id = :opponent_user_id)
+                 OR (m.player_a_id = :opponent_user_id AND m.player_b_id = :current_user_id)
+              )
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $duplicatePendingStmt->execute([
+            'current_user_id' => $currentUserId,
+            'opponent_user_id' => $opponent['id'],
+            'territory_id' => $territoryId,
+            'own_army_id' => $ownArmyId,
+            'own_score' => $ownScore,
+            'opponent_score' => $opponentScore,
+        ]);
+
+        if ($duplicatePendingStmt->fetch(PDO::FETCH_ASSOC)) {
+            $pdo->rollBack();
+            jsonResponse([
+                'error' => 'Hai gia inserito questo risultato ed e ancora in attesa della conferma dell avversario.',
+            ], 409);
+        }
+
+        $matchId = uuidV4();
+
         $matchStmt = $pdo->prepare('
             INSERT INTO matches (
                 id,
@@ -471,38 +801,8 @@ if ($method === 'POST' && $path === '/matches/results') {
             'played_at' => $playedAt !== '' ? $playedAt : null,
         ]);
 
-        $resultStmt = $pdo->prepare('
-            INSERT INTO match_results (
-                id,
-                match_id,
-                submitted_by_user_id,
-                opponent_user_id,
-                own_army_id,
-                own_faction,
-                own_score,
-                opponent_score,
-                status,
-                note,
-                created_at,
-                updated_at
-            ) VALUES (
-                :id,
-                :match_id,
-                :submitted_by_user_id,
-                :opponent_user_id,
-                :own_army_id,
-                :own_faction,
-                :own_score,
-                :opponent_score,
-                :status,
-                :note,
-                NOW(),
-                NOW()
-            )
-        ');
-
-        $resultStmt->execute([
-            'id' => $resultId,
+        $insertResultStmt->execute([
+            'id' => uuidV4(),
             'match_id' => $matchId,
             'submitted_by_user_id' => $currentUserId,
             'opponent_user_id' => $opponent['id'],
@@ -622,4 +922,29 @@ function columnExists(PDO $pdo, string $tableName, string $columnName): bool
     $cache[$key] = (bool) $stmt->fetchColumn();
 
     return $cache[$key];
+}
+
+function calculateMatchPoints(int $playerAVictoryPoints, int $playerBVictoryPoints): array
+{
+    $difference = abs($playerAVictoryPoints - $playerBVictoryPoints);
+
+    if ($difference <= 450) {
+        return ['playerA' => 3, 'playerB' => 3];
+    }
+
+    if ($difference <= 950) {
+        return $playerAVictoryPoints > $playerBVictoryPoints
+            ? ['playerA' => 4, 'playerB' => 2]
+            : ['playerA' => 2, 'playerB' => 4];
+    }
+
+    if ($difference <= 1400) {
+        return $playerAVictoryPoints > $playerBVictoryPoints
+            ? ['playerA' => 5, 'playerB' => 1]
+            : ['playerA' => 1, 'playerB' => 5];
+    }
+
+    return $playerAVictoryPoints > $playerBVictoryPoints
+        ? ['playerA' => 6, 'playerB' => 0]
+        : ['playerA' => 0, 'playerB' => 6];
 }

@@ -1,5 +1,5 @@
 import { appConfig, armies, currentUser, factions, recentMatches, territories } from '@/mocks/data';
-import type { AppConfig, Army, AuthResult, FactionDefinition, MatchSummary, MeResult, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
+import type { AppConfig, Army, AuthResult, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const apiBaseUrls = configuredApiBaseUrl
@@ -91,6 +91,51 @@ export const api = {
     }
 
     return request<MatchSummary[]>('/matches/recent');
+  },
+  async getPendingMatchesForMe(): Promise<PendingMatchSuggestion[]> {
+    if (apiBaseUrls[0] === '') {
+      return [
+        {
+          matchId: 'pending-1',
+          territoryId: territories[0]?.id ?? 'territory-1',
+          territoryName: territories[0]?.name ?? 'Territorio demo',
+          opponentUserId: 'user-2',
+          opponentNickname: 'SkullRider',
+          opponentArmyId: armies[1]?.id ?? 'army-2',
+          opponentArmyName: armies[1]?.name ?? 'Armata demo',
+          opponentFaction: armies[1]?.defaultFaction ?? 'RAVAGING_HORDES',
+          opponentScore: 12,
+          yourScore: 15,
+          note: '',
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    }
+
+    return request<PendingMatchSuggestion[]>('/matches/pending-for-me');
+  },
+  async getPendingMatchesByMe(): Promise<PendingOwnMatch[]> {
+    if (apiBaseUrls[0] === '') {
+      return [
+        {
+          matchId: 'pending-own-1',
+          territoryId: territories[0]?.id ?? 'territory-1',
+          territoryName: territories[0]?.name ?? 'Territorio demo',
+          opponentUserId: 'user-2',
+          opponentNickname: 'SkullRider',
+          ownArmyId: armies[0]?.id ?? 'army-1',
+          ownArmyName: armies[0]?.name ?? 'Armata demo',
+          ownFaction: armies[0]?.defaultFaction ?? 'FORCES_OF_FANTASY',
+          ownScore: 1250,
+          opponentScore: 980,
+          note: '',
+          createdAt: new Date().toISOString(),
+          status: 'PENDING',
+        },
+      ];
+    }
+
+    return request<PendingOwnMatch[]>('/matches/pending-by-me');
   },
   async submitResult(payload: SubmitResultPayload): Promise<{ message: string }> {
     if (apiBaseUrls[0] === '') {

@@ -65,11 +65,44 @@ export interface MatchSummary {
   armyA: string;
   factionA: Faction;
   scoreA: number;
+  victoryPointsA: number;
   playerB: string;
   armyB: string;
   factionB: Faction;
   scoreB: number;
+  victoryPointsB: number;
   status: MatchStatus;
+}
+
+export interface PendingMatchSuggestion {
+  matchId: string;
+  territoryId: string;
+  territoryName: string;
+  opponentUserId: string;
+  opponentNickname: string;
+  opponentArmyId: string;
+  opponentArmyName: string;
+  opponentFaction: Faction;
+  opponentScore: number;
+  yourScore: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface PendingOwnMatch {
+  matchId: string;
+  territoryId: string;
+  territoryName: string;
+  opponentUserId: string;
+  opponentNickname: string;
+  ownArmyId: string;
+  ownArmyName: string;
+  ownFaction: Faction;
+  ownScore: number;
+  opponentScore: number;
+  note: string;
+  createdAt: string;
+  status: 'PENDING';
 }
 
 export interface SubmitResultPayload {

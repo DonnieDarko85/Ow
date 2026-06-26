@@ -23,12 +23,12 @@
     </section>
 
     <section class="content-grid single-column">
-      <div class="panel-card">
+      <div class="panel-card home-recent-matches">
         <SectionHeader
           eyebrow="Ultimi scontri"
           title="Match recenti"
         />
-        <MatchesTable :matches="recentMatches.slice(0, 10)" />
+        <MatchesTable :matches="confirmedRecentMatches.slice(0, 10)" />
       </div>
     </section>
   </div>
@@ -52,6 +52,10 @@ const factionOrder: Faction[] = ['FORCES_OF_FANTASY', 'RAVAGING_HORDES', 'UNDEAD
 
 const confirmedBattles = computed(() =>
   territories.value.reduce((sum, territory) => sum + territory.stats.confirmedBattles, 0),
+);
+
+const confirmedRecentMatches = computed(() =>
+  recentMatches.value.filter((match) => match.status === 'CONFIRMED'),
 );
 
 const factionDistribution = computed(() => {

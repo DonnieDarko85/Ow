@@ -1,16 +1,29 @@
 <template>
   <div class="page-stack">
-    <div class="submit-result-header">
-      <SectionHeader
-        eyebrow="Nuovo inserimento"
-        title="Registra un risultato partita"
-        description="Form mobile-first con campi grandi, validazione client e payload pronto per backend PHP."
-      />
-    </div>
-
     <section class="submit-result-layout">
       <form class="panel-card form-grid" @submit.prevent="handleSubmit">
-        <label>
+        <div v-if="pendingSuggestions.length > 0" class="full-span pending-suggestions">
+          <div class="pending-suggestions-head">
+            <span>Da confermare</span>
+            <small class="muted-copy">Selezionandone uno, il form si precompila con territorio, avversario e punteggi speculari.</small>
+          </div>
+
+          <div class="pending-suggestions-list">
+            <button
+              v-for="suggestion in pendingSuggestions"
+              :key="suggestion.matchId"
+              class="pending-suggestion-button"
+              type="button"
+              @click="applySuggestion(suggestion)"
+            >
+              <strong>{{ suggestion.opponentNickname }}</strong>
+              <span>{{ suggestion.territoryName }}</span>
+              <span>{{ suggestion.yourScore }} - {{ suggestion.opponentScore }}</span>
+            </button>
+          </div>
+        </div>
+
+        <label class="submit-territory">
           <span>Territorio</span>
           <select v-model="form.territoryId" required>
             <option value="" disabled>Seleziona un territorio</option>
@@ -20,7 +33,13 @@
           </select>
         </label>
 
-        <label>
+        <div class="submit-layout-spacer" aria-hidden="true"></div>
+
+        <div class="selected-faction-chip submit-faction-chip" :style="selectedFactionStyle">
+          {{ selectedFactionName }}
+        </div>
+
+        <label class="submit-army">
           <span>Armata</span>
           <select v-model="form.ownArmyId" required>
             <option value="" disabled>Seleziona una armata</option>
@@ -30,12 +49,7 @@
           </select>
         </label>
 
-        <label>
-          <span>Fazione</span>
-          <input :value="selectedFactionName" :style="selectedFactionStyle" type="text" readonly />
-        </label>
-
-        <label>
+        <label class="submit-opponent-search">
           <span>Nickname avversario</span>
           <input
             v-model.trim="opponentSearch"
@@ -43,6 +57,10 @@
             placeholder="Cerca nickname avversario"
             autocomplete="off"
           />
+        </label>
+
+        <label class="submit-opponent-select">
+          <span class="sr-only">Selezione avversario</span>
           <select v-model="form.opponentNickname" required>
             <option value="" disabled>Seleziona un avversario</option>
             <option
@@ -55,22 +73,22 @@
           </select>
         </label>
 
-        <label>
-          <span>Punti tuoi</span>
+        <label class="submit-own-score">
+          <span>Miei punti vittoria</span>
           <input v-model.number="form.ownScore" type="number" min="0" required />
         </label>
 
-        <label>
-          <span>Punti avversario</span>
+        <label class="submit-opponent-score">
+          <span>P.V. avversario</span>
           <input v-model.number="form.opponentScore" type="number" min="0" required />
         </label>
 
-        <label class="full-span">
+        <label class="submit-notes">
           <span>Note</span>
           <textarea v-model="form.note" rows="4" placeholder="Dettagli extra, missione, scenario, anomalia da segnalare..." />
         </label>
 
-        <button class="primary-button full-span" :disabled="isSubmitting" type="submit">
+        <button class="primary-button submit-button" :disabled="isSubmitting" type="submit">
           {{ isSubmitting ? 'Invio in corso...' : 'Invia risultato' }}
         </button>
         <p v-if="loadError" class="field-error full-span">{{ loadError }}</p>
@@ -82,8 +100,9 @@
         <ul class="text-list">
           <li>Entrambi i giocatori devono indicare lo stesso territorio.</li>
           <li>I punteggi devono combaciare in modo speculare.</li>
-          <li>La fazione viene dedotta automaticamente in base all armata selezionata.</li>
           <li>I match incoerenti restano fuori dalle statistiche finche non vengono risolti.</li>
+          <li>Le partite che matchano vengono automaticamente registrate come accoppiate all inserimento.</li>
+          <li>Il sistema propone i match inseriti dal proprio avversario ed ancora da te non confermati.</li>
         </ul>
         <p v-if="submitMessage" class="success-message">{{ submitMessage }}</p>
       </aside>
@@ -92,13 +111,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import SectionHeader from '@/components/SectionHeader.vue';
 import { useTheme } from '@/composables/useTheme';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
-import type { SubmitResultPayload, UserLookup } from '@/types';
+import type { PendingMatchSuggestion, SubmitResultPayload, UserLookup } from '@/types';
 
 const appStore = useAppStore();
 const { armies, territories, user } = storeToRefs(appStore);
@@ -107,6 +125,7 @@ const submitMessage = ref('');
 const loadError = ref('');
 const opponents = ref<UserLookup[]>([]);
 const opponentSearch = ref('');
+const pendingSuggestions = ref<PendingMatchSuggestion[]>([]);
 
 const form = reactive<SubmitResultPayload>({
   territoryId: '',
@@ -161,6 +180,16 @@ const hasLookupData = computed(() =>
   sortedArmies.value.length > 0 && territories.value.length > 0 && availableOpponents.value.length > 0,
 );
 
+watch(
+  () => user.value?.preferredArmyId,
+  (preferredArmyId) => {
+    if (preferredArmyId) {
+      form.ownArmyId = preferredArmyId;
+    }
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
   if (!appStore.hasBootstrapped) {
     await appStore.ensureBootstrapped();
@@ -186,9 +215,20 @@ onMounted(async () => {
     }
   }
 
-  try {
-    opponents.value = await api.getUsers();
-  } catch (error) {
+  const [usersResult, pendingResult] = await Promise.allSettled([
+    api.getUsers(),
+    api.getPendingMatchesForMe(),
+  ]);
+
+  if (usersResult.status === 'fulfilled') {
+    opponents.value = usersResult.value;
+  }
+
+  if (pendingResult.status === 'fulfilled') {
+    pendingSuggestions.value = pendingResult.value;
+  }
+
+  if (usersResult.status === 'rejected') {
     loadError.value = 'Non sono riuscito a caricare la lista avversari dal server.';
   }
 
@@ -211,7 +251,9 @@ onMounted(async () => {
   } else {
     loadError.value = '';
 
-    if (!form.ownArmyId && sortedArmies.value[0]) {
+    if (user.value?.preferredArmyId) {
+      form.ownArmyId = user.value.preferredArmyId;
+    } else if (!form.ownArmyId && sortedArmies.value[0]) {
       form.ownArmyId = sortedArmies.value[0].id;
     }
   }
@@ -220,6 +262,7 @@ onMounted(async () => {
 async function handleSubmit() {
   isSubmitting.value = true;
   submitMessage.value = '';
+  loadError.value = '';
 
   try {
     const result = await api.submitResult({
@@ -228,8 +271,34 @@ async function handleSubmit() {
       playedAt: '',
     });
     submitMessage.value = result.message;
+    const [recentMatchesResult, pendingResult] = await Promise.allSettled([
+      api.getRecentMatches(),
+      api.getPendingMatchesForMe(),
+    ]);
+
+    if (recentMatchesResult.status === 'fulfilled') {
+      appStore.recentMatches = recentMatchesResult.value;
+    }
+
+    if (pendingResult.status === 'fulfilled') {
+      pendingSuggestions.value = pendingResult.value;
+    }
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : 'Errore durante il salvataggio del risultato.';
   } finally {
     isSubmitting.value = false;
+  }
+}
+
+function applySuggestion(suggestion: PendingMatchSuggestion) {
+  form.territoryId = suggestion.territoryId;
+  form.opponentNickname = suggestion.opponentNickname;
+  form.ownScore = suggestion.yourScore;
+  form.opponentScore = suggestion.opponentScore;
+  opponentSearch.value = suggestion.opponentNickname;
+
+  if (!form.ownArmyId && sortedArmies.value[0]) {
+    form.ownArmyId = sortedArmies.value[0].id;
   }
 }
 </script>
