@@ -338,16 +338,112 @@ if ($method === 'GET' && $path === '/territories') {
         ORDER BY t.sort_order, t.name
     ');
 
+    $factionCodes = getActiveFactionCodes($pdo);
+    $territoryStats = [];
+
+    $matchesStmt = $pdo->query("
+        SELECT
+            m.id,
+            m.territory_id AS territoryId,
+            m.status,
+            resultA.own_faction AS factionA,
+            armyA.name AS armyAName,
+            resultA.own_score AS victoryScoreA,
+            resultB.own_faction AS factionB,
+            armyB.name AS armyBName,
+            resultB.own_score AS victoryScoreB
+        FROM matches m
+        LEFT JOIN match_results resultA
+            ON resultA.match_id = m.id
+           AND resultA.submitted_by_user_id = m.player_a_id
+           AND resultA.status = 'CONFIRMED'
+        LEFT JOIN match_results resultB
+            ON resultB.match_id = m.id
+           AND resultB.submitted_by_user_id = m.player_b_id
+           AND resultB.status = 'CONFIRMED'
+        LEFT JOIN armies armyA ON armyA.id = resultA.own_army_id
+        LEFT JOIN armies armyB ON armyB.id = resultB.own_army_id
+        WHERE m.status IN ('PENDING', 'CONFIRMED')
+    ");
+
+    foreach ($matchesStmt->fetchAll(PDO::FETCH_ASSOC) as $matchRow) {
+        $territoryId = (string) $matchRow['territoryId'];
+
+        if (! isset($territoryStats[$territoryId])) {
+            $territoryStats[$territoryId] = [
+                'confirmedBattles' => 0,
+                'pendingBattles' => 0,
+                'factionWins' => [],
+                'armyWins' => [],
+            ];
+        }
+
+        if ($matchRow['status'] === 'PENDING') {
+            $territoryStats[$territoryId]['pendingBattles']++;
+            continue;
+        }
+
+        if (
+            ! is_string($matchRow['factionA']) || $matchRow['factionA'] === ''
+            || ! is_string($matchRow['factionB']) || $matchRow['factionB'] === ''
+        ) {
+            continue;
+        }
+
+        $territoryStats[$territoryId]['confirmedBattles']++;
+
+        $matchPoints = calculateMatchPoints(
+            (int) $matchRow['victoryScoreA'],
+            (int) $matchRow['victoryScoreB']
+        );
+
+        if ($matchPoints['playerA'] === $matchPoints['playerB']) {
+            incrementWeightedCount($territoryStats[$territoryId]['factionWins'], (string) $matchRow['factionA'], 0.5);
+            incrementWeightedCount($territoryStats[$territoryId]['factionWins'], (string) $matchRow['factionB'], 0.5);
+
+            if (is_string($matchRow['armyAName']) && $matchRow['armyAName'] !== '') {
+                incrementWeightedCount($territoryStats[$territoryId]['armyWins'], (string) $matchRow['armyAName'], 0.5);
+            }
+
+            if (is_string($matchRow['armyBName']) && $matchRow['armyBName'] !== '') {
+                incrementWeightedCount($territoryStats[$territoryId]['armyWins'], (string) $matchRow['armyBName'], 0.5);
+            }
+
+            continue;
+        }
+
+        $winningFaction = $matchPoints['playerA'] > $matchPoints['playerB']
+            ? (string) $matchRow['factionA']
+            : (string) $matchRow['factionB'];
+        $winningArmy = $matchPoints['playerA'] > $matchPoints['playerB']
+            ? (string) ($matchRow['armyAName'] ?? '')
+            : (string) ($matchRow['armyBName'] ?? '');
+
+        incrementWeightedCount($territoryStats[$territoryId]['factionWins'], $winningFaction, 1);
+
+        if ($winningArmy !== '') {
+            incrementWeightedCount($territoryStats[$territoryId]['armyWins'], $winningArmy, 1);
+        }
+    }
+
     $territories = [];
 
-    foreach ($stmt->fetchAll() as $row) {
-        $row['stats'] = [
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $stats = $territoryStats[(string) $row['id']] ?? [
             'confirmedBattles' => 0,
             'pendingBattles' => 0,
-            'dominantFaction' => 'FORCES_OF_FANTASY',
-            'factionControl' => [],
-            'armyControl' => [],
+            'factionWins' => [],
+            'armyWins' => [],
         ];
+
+        $row['stats'] = buildTerritoryStatsPayload(
+            $stats['confirmedBattles'],
+            $stats['pendingBattles'],
+            $stats['factionWins'],
+            $stats['armyWins'],
+            $factionCodes
+        );
+
         $territories[] = $row;
     }
 
@@ -949,4 +1045,91 @@ function calculateMatchPoints(int $playerAVictoryPoints, int $playerBVictoryPoin
     return $playerAVictoryPoints > $playerBVictoryPoints
         ? ['playerA' => 6, 'playerB' => 0]
         : ['playerA' => 0, 'playerB' => 6];
+}
+
+function getActiveFactionCodes(PDO $pdo): array
+{
+    if (tableExists($pdo, 'factions')) {
+        $stmt = $pdo->query("
+            SELECT code
+            FROM factions
+            WHERE is_active = 1
+            ORDER BY sort_order, name
+        ");
+
+        $codes = array_map(
+            static fn (array $row): string => (string) $row['code'],
+            $stmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+
+        if ($codes !== []) {
+            return $codes;
+        }
+    }
+
+    return ['FORCES_OF_FANTASY', 'RAVAGING_HORDES', 'UNDEAD'];
+}
+
+function incrementWeightedCount(array &$bucket, string $key, float $amount): void
+{
+    if (! isset($bucket[$key])) {
+        $bucket[$key] = 0.0;
+    }
+
+    $bucket[$key] += $amount;
+}
+
+function buildTerritoryStatsPayload(
+    int $confirmedBattles,
+    int $pendingBattles,
+    array $factionWins,
+    array $armyWins,
+    array $factionCodes
+): array {
+    $factionControl = [];
+    $dominantFaction = (string) ($factionCodes[0] ?? 'FORCES_OF_FANTASY');
+
+    foreach ($factionCodes as $factionCode) {
+        $value = (float) ($factionWins[$factionCode] ?? 0);
+        $percentage = $confirmedBattles > 0 ? (int) round(($value / $confirmedBattles) * 100) : 0;
+        $factionControl[] = [
+            'faction' => $factionCode,
+            'percentage' => $percentage,
+        ];
+    }
+
+    usort(
+        $factionControl,
+        static function (array $left, array $right): int {
+            return $right['percentage'] <=> $left['percentage'];
+        }
+    );
+
+    if ($factionControl !== [] && $factionControl[0]['percentage'] > 0) {
+        $dominantFaction = (string) $factionControl[0]['faction'];
+    }
+
+    $armyControl = [];
+
+    foreach ($armyWins as $armyName => $value) {
+        $armyControl[] = [
+            'armyName' => (string) $armyName,
+            'percentage' => $confirmedBattles > 0 ? (int) round((((float) $value) / $confirmedBattles) * 100) : 0,
+        ];
+    }
+
+    usort(
+        $armyControl,
+        static function (array $left, array $right): int {
+            return $right['percentage'] <=> $left['percentage'];
+        }
+    );
+
+    return [
+        'confirmedBattles' => $confirmedBattles,
+        'pendingBattles' => $pendingBattles,
+        'dominantFaction' => $dominantFaction,
+        'factionControl' => $factionControl,
+        'armyControl' => $armyControl,
+    ];
 }

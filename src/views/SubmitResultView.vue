@@ -35,10 +35,6 @@
 
         <div class="submit-layout-spacer" aria-hidden="true"></div>
 
-        <div class="selected-faction-chip submit-faction-chip" :style="selectedFactionStyle">
-          {{ selectedFactionName }}
-        </div>
-
         <label class="submit-army">
           <span>Armata</span>
           <select v-model="form.ownArmyId" required>
@@ -48,6 +44,10 @@
             </option>
           </select>
         </label>
+
+        <div class="selected-faction-chip submit-faction-chip" :style="selectedFactionStyle">
+          {{ selectedFactionName }}
+        </div>
 
         <label class="submit-opponent-search">
           <span>Nickname avversario</span>
