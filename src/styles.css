@@ -83,36 +83,6 @@ button {
   min-height: 100vh;
 }
 
-.app-root.three-d-enabled .app-shell .shell-topbar,
-.app-root.three-d-enabled .app-shell .content-frame,
-.app-root.three-d-enabled .app-shell .shell-footer {
-  border: 0;
-  border-radius: 0;
-  background-image:
-    var(--ornate-frame-top),
-    var(--ornate-frame-bottom),
-    var(--ornate-frame-left),
-    var(--ornate-frame-right);
-  background-repeat: no-repeat, no-repeat, repeat-y, repeat-y;
-  background-size: 100% 20px, 100% 20px, 20px auto, 20px auto;
-  background-position: 0 0, 0 100%, 0 20px, 100% 20px;
-}
-
-.app-root.three-d-enabled .app-shell .shell-topbar {
-  padding: calc(0.85rem + 8px) calc(1.1rem + 8px) calc(0.85rem + 6px);
-  background-color: rgba(20, 20, 20, 0.96);
-}
-
-.app-root.three-d-enabled .app-shell .content-frame {
-  padding: calc(1.15rem + 8px) calc(1.15rem + 8px) calc(1.15rem + 6px);
-  background-color: rgba(14, 14, 14, 0.9);
-}
-
-.app-root.three-d-enabled .app-shell .shell-footer {
-  padding: calc(0.85rem + 8px) calc(1.1rem + 8px) calc(0.85rem + 6px);
-  background-color: rgba(18, 18, 18, 0.96);
-}
-
 .shell-sidebar {
   position: sticky;
   top: 0;
@@ -170,7 +140,8 @@ button {
 
 .shell-footer {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 1rem;
   margin: 0 1.5rem 1.5rem;
   padding: 1rem 1.25rem;
@@ -178,11 +149,49 @@ button {
   background: rgba(18, 18, 18, 0.96);
 }
 
+.footer-block {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.footer-block-center {
+  align-self: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.footer-meta-line {
+  white-space: nowrap;
+}
+
 .footer-links {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem 1rem;
-  justify-content: flex-end;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.info-page-card {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.info-page-copy {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 72ch;
+}
+
+.info-page-copy h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+}
+
+.info-page-back {
+  width: auto;
+  min-width: 180px;
 }
 
 .brand-card,
@@ -1139,33 +1148,6 @@ button {
   margin: 1.2rem 0;
 }
 
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.1rem;
-  border: 1px solid rgba(179, 24, 31, 0.2);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.theme-toggle-copy {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.theme-toggle-copy strong {
-  font-size: 1rem;
-}
-
-.theme-toggle input[type="checkbox"] {
-  width: auto;
-  margin: 0;
-  transform: scale(1.25);
-  accent-color: var(--accent);
-}
-
 .full-span {
   grid-column: 1 / -1;
 }
@@ -1180,6 +1162,11 @@ button {
   border-radius: 14px;
   font-weight: 700;
   text-align: center;
+}
+
+.profile-faction-chip {
+  width: 100%;
+  margin-top: 0.45rem;
 }
 
 .sr-only {

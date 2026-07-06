@@ -1,5 +1,5 @@
 import { appConfig, armies, currentUser, factions, recentMatches, territories } from '@/mocks/data';
-import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, CreateTerritoryPayload, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UserLookup, UserProfile } from '@/types';
+import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, CreateTerritoryPayload, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UpdateProfilePayload, UserLookup, UserProfile } from '@/types';
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const apiBaseUrls = configuredApiBaseUrl
@@ -218,6 +218,24 @@ export const api = {
 
     return request<AuthResult>('/auth/register', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  async updateMyProfile(payload: UpdateProfilePayload): Promise<{ message: string; user: UserProfile }> {
+    if (apiBaseUrls[0] === '') {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      currentUser.preferredArmyId = payload.preferredArmyId ?? undefined;
+      currentUser.preferredFaction = payload.preferredFaction ?? undefined;
+
+      return {
+        message: 'Profilo aggiornato in modalita locale.',
+        user: { ...currentUser },
+      };
+    }
+
+    return request<{ message: string; user: UserProfile }>('/me/profile', {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
   },

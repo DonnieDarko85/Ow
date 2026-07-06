@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia';
 import { api } from '@/services/api';
-import type { AppConfig, Army, FactionDefinition, MatchSummary, RegisterPayload, Territory, UserProfile } from '@/types';
+import type { AppConfig, Army, FactionDefinition, MatchSummary, RegisterPayload, Territory, UpdateProfilePayload, UserProfile } from '@/types';
 
 interface AppState {
   config: AppConfig | null;
   user: UserProfile | null;
-  useThreeDTheme: boolean;
   armies: Army[];
   factions: FactionDefinition[];
   territories: Territory[];
@@ -16,27 +15,11 @@ interface AppState {
 }
 
 let bootstrapPromise: Promise<void> | null = null;
-const THREE_D_THEME_STORAGE_KEY = 'ow-use-three-d-theme';
-
-function readThreeDThemePreference() {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const storedValue = window.localStorage.getItem(THREE_D_THEME_STORAGE_KEY);
-
-  if (storedValue === null) {
-    return false;
-  }
-
-  return storedValue === 'true';
-}
 
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
     config: null,
     user: null,
-    useThreeDTheme: readThreeDThemePreference(),
     armies: [],
     factions: [],
     territories: [],
@@ -148,11 +131,14 @@ export const useAppStore = defineStore('app', {
         this.isLoading = false;
       }
     },
-    setThreeDTheme(enabled: boolean) {
-      this.useThreeDTheme = enabled;
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(THREE_D_THEME_STORAGE_KEY, String(enabled));
+    async updateMyProfile(payload: UpdateProfilePayload) {
+      this.isLoading = true;
+      try {
+        const result = await api.updateMyProfile(payload);
+        this.user = result.user;
+        return result;
+      } finally {
+        this.isLoading = false;
       }
     },
     logout() {

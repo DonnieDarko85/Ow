@@ -169,6 +169,12 @@ export interface RegisterPayload {
   passwordConfirmation: string;
 }
 
+export interface UpdateProfilePayload {
+  preferredArmyId?: string | null;
+  preferredFaction?: Faction | null;
+  password?: string;
+}
+
 export interface AuthResult {
   user: UserProfile;
   message: string;

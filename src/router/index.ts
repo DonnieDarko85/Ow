@@ -10,6 +10,7 @@ import AdminView from '@/views/AdminView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
+import InfoPageView from '@/views/InfoPageView.vue';
 import { useAppStore } from '@/stores/app';
 
 const router = createRouter({
@@ -52,6 +53,26 @@ const router = createRouter({
           name: 'admin',
           component: AdminView,
           meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'legal',
+          name: 'info-legal',
+          component: InfoPageView,
+        },
+        {
+          path: 'privacy',
+          name: 'info-privacy',
+          component: InfoPageView,
+        },
+        {
+          path: 'cookie',
+          name: 'info-cookie',
+          component: InfoPageView,
+        },
+        {
+          path: 'contacts',
+          name: 'info-contacts',
+          component: InfoPageView,
         },
       ],
     },

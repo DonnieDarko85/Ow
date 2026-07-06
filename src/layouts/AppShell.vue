@@ -44,19 +44,17 @@
       </main>
 
       <footer class="shell-footer">
-        <div>
+        <div class="footer-block">
           <strong>{{ config?.appName }}</strong>
-          <p class="muted-copy">Versione {{ config?.appVersion }}</p>
+          <p class="muted-copy footer-meta-line">Versione {{ config?.appVersion }} · Powered by LiminalCode</p>
         </div>
-        <div>
-          <p class="muted-copy">{{ config?.organizationName }}</p>
-          <p class="muted-copy">{{ config?.legalNote }}</p>
-        </div>
-        <div class="footer-links">
-          <a :href="config?.legalUrl">Note legali</a>
-          <a :href="config?.privacyUrl">Privacy</a>
-          <a :href="config?.cookieUrl">Cookie</a>
-          <a :href="`mailto:${config?.contactEmail}`">Contatti</a>
+        <div class="footer-block footer-block-center">
+          <div class="footer-links">
+            <RouterLink :to="{ name: 'info-legal' }">Note legali</RouterLink>
+            <RouterLink :to="{ name: 'info-privacy' }">Privacy</RouterLink>
+            <RouterLink :to="{ name: 'info-cookie' }">Cookie</RouterLink>
+            <RouterLink :to="{ name: 'info-contacts' }">Contatti</RouterLink>
+          </div>
         </div>
       </footer>
     </div>

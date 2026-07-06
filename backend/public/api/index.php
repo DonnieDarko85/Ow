@@ -96,6 +96,91 @@ if ($method === 'GET' && $path === '/me') {
     jsonResponse(['user' => $user ?: null], 200);
 }
 
+if ($method === 'PATCH' && $path === '/me/profile') {
+    $userId = $_SESSION['user_id'] ?? null;
+
+    if (! is_string($userId) || $userId === '') {
+        jsonResponse(['error' => 'Autenticazione richiesta.'], 401);
+    }
+
+    $preferredArmyId = trim((string) ($payload['preferredArmyId'] ?? ''));
+    $preferredFaction = trim((string) ($payload['preferredFaction'] ?? ''));
+    $password = (string) ($payload['password'] ?? '');
+
+    if ($password !== '' && mb_strlen($password) < 8) {
+        jsonResponse(['error' => 'La password deve avere almeno 8 caratteri.'], 422);
+    }
+
+    if ($preferredArmyId !== '') {
+        $armyStmt = $pdo->prepare('
+            SELECT
+                id,
+                default_faction AS defaultFaction
+            FROM armies
+            WHERE id = :id
+              AND is_active = 1
+            LIMIT 1
+        ');
+        $armyStmt->execute(['id' => $preferredArmyId]);
+        $army = $armyStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (! $army) {
+            jsonResponse(['error' => 'Armata preferita non valida.'], 422);
+        }
+
+        $preferredFaction = (string) $army['defaultFaction'];
+    } else {
+        $preferredFaction = '';
+    }
+
+    $assignments = [
+        'preferred_army_id = :preferred_army_id',
+        'preferred_faction = :preferred_faction',
+        'updated_at = NOW()',
+    ];
+    $params = [
+        'id' => $userId,
+        'preferred_army_id' => $preferredArmyId !== '' ? $preferredArmyId : null,
+        'preferred_faction' => $preferredFaction !== '' ? $preferredFaction : null,
+    ];
+
+    if ($password !== '') {
+        $assignments[] = 'password_hash = :password_hash';
+        $params['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+    }
+
+    $updateStmt = $pdo->prepare("
+        UPDATE users
+        SET " . implode(",\n            ", $assignments) . "
+        WHERE id = :id
+    ");
+    $updateStmt->execute($params);
+
+    $selectStmt = $pdo->prepare('
+        SELECT
+            id,
+            nickname,
+            role,
+            avatar_url AS avatarUrl,
+            preferred_army_id AS preferredArmyId,
+            preferred_faction AS preferredFaction
+        FROM users
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $selectStmt->execute(['id' => $userId]);
+    $user = $selectStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $user) {
+        jsonResponse(['error' => 'Utente non trovato.'], 404);
+    }
+
+    jsonResponse([
+        'message' => 'Profilo aggiornato correttamente.',
+        'user' => $user,
+    ]);
+}
+
 if ($method === 'POST' && $path === '/auth/register') {
     $nickname = trim((string) ($payload['nickname'] ?? ''));
     $email = trim((string) ($payload['email'] ?? ''));
