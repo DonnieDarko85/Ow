@@ -40,10 +40,12 @@ mkdir -p "${DIST_DIR}/backend/config"
 cp backend/public/api/index.php "${DIST_DIR}/api/index.php"
 cp backend/src/Database.php "${DIST_DIR}/backend/src/Database.php"
 cp backend/config/config.php "${DIST_DIR}/backend/config/config.php"
+cp .htaccess "${DIST_DIR}/.htaccess"
 
 chmod 644 "${DIST_DIR}/api/index.php"
 chmod 644 "${DIST_DIR}/backend/src/Database.php"
 chmod 600 "${DIST_DIR}/backend/config/config.php"
+chmod 644 "${DIST_DIR}/.htaccess"
 
 echo
 echo "Build completata con successo."
@@ -52,6 +54,7 @@ find "${DIST_DIR}" -maxdepth 4 -type f | sort
 echo
 echo "Carica sul server tutto il contenuto della cartella dist/:"
 echo "- index.html"
+echo "- .htaccess"
 echo "- assets/"
 echo "- api/index.php"
 echo "- backend/src/Database.php"

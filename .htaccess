@@ -1,0 +1,12 @@
+DirectoryIndex index.html
+
+RewriteEngine On
+RewriteBase /
+
+# Serve existing files and directories as-is.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Fallback SPA routes to the built frontend entrypoint.
+RewriteRule ^ index.html [L]
