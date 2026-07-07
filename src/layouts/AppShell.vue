@@ -101,6 +101,7 @@ const navItems = computed(() => {
       { label: 'Mappa e territori', short: 'Mappa', to: { name: 'dashboard' }, matchNames: ['dashboard', 'territory-detail'] },
       { label: 'Accedi', short: 'Login', to: { name: 'login' }, matchNames: ['login', 'forgot-password'] },
       { label: 'Registrati', short: 'Join', to: { name: 'register' }, matchNames: ['register'] },
+      { label: 'Risorse', short: 'Ris', to: { name: 'resources' }, matchNames: ['resources'] },
     ];
   }
 
@@ -109,6 +110,7 @@ const navItems = computed(() => {
     { label: 'Inserisci risultato', short: 'Esito', to: { name: 'submit-result' }, matchNames: ['submit-result'] },
     { label: 'I miei risultati', short: 'Storico', to: { name: 'results' }, matchNames: ['results'] },
     { label: 'Profilo', short: 'Profilo', to: { name: 'profile' }, matchNames: ['profile'] },
+    { label: 'Risorse', short: 'Ris', to: { name: 'resources' }, matchNames: ['resources'] },
     ...(user.value?.role === 'ADMIN'
       ? [{ label: 'Admin', short: 'Admin', to: { name: 'admin' }, matchNames: ['admin'] }]
       : []),

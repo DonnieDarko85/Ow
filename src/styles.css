@@ -668,7 +668,7 @@ button {
 }
 
 .campaign-map-hex {
-  fill: rgba(47, 111, 221, 0.04);
+  fill: rgba(47, 111, 221, 0.16);
   stroke: rgba(150, 188, 255, 0.22);
   stroke-width: 1.4;
   cursor: pointer;
@@ -676,16 +676,26 @@ button {
 }
 
 .campaign-map-hex.is-assigned {
-  fill: rgba(47, 111, 221, 0.16);
-  stroke: rgba(150, 188, 255, 0.7);
   opacity: 0.96;
 }
 
-.campaign-map-hex:hover,
 .campaign-map-hex.is-active {
   fill: rgba(47, 111, 221, 0.28);
   stroke: rgba(207, 226, 255, 0.96);
   stroke-width: 2.4;
+}
+
+.campaign-map-boundaries {
+  pointer-events: none;
+}
+
+.campaign-map-boundary {
+  stroke: var(--boundary-color, rgba(224, 239, 255, 0.92));
+  stroke-width: 2.6;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--boundary-color, #dcefff) 55%, transparent));
 }
 
 .map-territory-caption {
@@ -700,6 +710,40 @@ button {
 
 .map-territory-caption span {
   color: var(--muted);
+}
+
+.resources-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.resources-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.resource-item {
+  display: grid;
+  gap: 0.2rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.resource-item strong {
+  color: var(--text);
+}
+
+.resource-item span {
+  color: var(--muted);
+}
+
+.resource-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(179, 24, 31, 0.48);
+  background: rgba(179, 24, 31, 0.08);
 }
 
 .territory-tile,

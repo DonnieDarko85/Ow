@@ -7,6 +7,7 @@ import SubmitResultView from '@/views/SubmitResultView.vue';
 import ResultsView from '@/views/ResultsView.vue';
 import ProfileView from '@/views/ProfileView.vue';
 import AdminView from '@/views/AdminView.vue';
+import ResourcesView from '@/views/ResourcesView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
@@ -46,6 +47,12 @@ const router = createRouter({
           path: 'profile',
           name: 'profile',
           component: ProfileView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'resources',
+          name: 'resources',
+          component: ResourcesView,
           meta: { requiresAuth: true },
         },
         {

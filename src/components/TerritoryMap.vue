@@ -22,13 +22,13 @@
       >
         <g>
           <polygon
-            v-for="hex in hexes"
+            v-for="hex in assignedHexes"
             :key="hex.id"
             :points="hex.points"
             class="campaign-map-hex"
             :class="{
               'is-active': activeTerritoryId === assignments[hex.id],
-              'is-visible': activeTerritoryId !== '',
+              'is-assigned': Boolean(assignments[hex.id]),
             }"
             @mouseenter="setActiveTerritory(assignments[hex.id])"
             @mouseleave="clearHover"
@@ -44,6 +44,7 @@
             :x2="segment.x2"
             :y2="segment.y2"
             class="campaign-map-boundary"
+            :style="boundaryStyle(segment.territoryId)"
           />
         </g>
       </svg>
@@ -61,17 +62,21 @@ import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import campaignMap from '@/assets/maps/campaign-map.webp';
 import { api } from '@/services/api';
+import { useTheme } from '@/composables/useTheme';
 import { useAppStore } from '@/stores/app';
 import type { HexCell } from '@/utils/hexMap';
+import type { Territory } from '@/types';
 import { HEX_MAP_HEIGHT, HEX_MAP_WIDTH, buildHexGrid, loadStoredHexAssignments } from '@/utils/hexMap';
 
 const appStore = useAppStore();
 const { territories } = storeToRefs(appStore);
+const { factionColor } = useTheme();
 
 const assignments = ref<Record<string, string>>({});
 const activeTerritoryId = ref('');
 const pinnedTerritoryId = ref('');
 const hexes = computed(() => buildHexGrid());
+const assignedHexes = computed(() => hexes.value.filter((hex) => Boolean(assignments.value[hex.id])));
 const boundarySegments = computed(() => buildBoundarySegments(hexes.value, assignments.value));
 
 const activeTerritory = computed(() =>
@@ -117,6 +122,7 @@ function pinTerritory(territoryId?: string) {
 
 interface BoundarySegment {
   id: string;
+  territoryId: string;
   x1: number;
   y1: number;
   x2: number;
@@ -124,8 +130,14 @@ interface BoundarySegment {
 }
 
 function buildBoundarySegments(hexList: HexCell[], territoryAssignments: Record<string, string>): BoundarySegment[] {
-  const hexById = new Map(hexList.map((hex) => [hex.id, hex] as const));
-  const segments: BoundarySegment[] = [];
+  const edgeGroups = new Map<
+    string,
+    {
+      coords: { x1: number; y1: number; x2: number; y2: number };
+      territories: Set<string>;
+      count: number;
+    }
+  >();
 
   for (const hex of hexList) {
     const territoryId = territoryAssignments[hex.id];
@@ -135,26 +147,55 @@ function buildBoundarySegments(hexList: HexCell[], territoryAssignments: Record<
     }
 
     const points = parseHexPoints(hex.points);
-    const neighbors = neighborCoordinates(hex.row, hex.col);
+    points.forEach((start, edgeIndex) => {
+      const end = points[(edgeIndex + 1) % points.length];
+      const key = edgeKey(start.x, start.y, end.x, end.y);
+      const existing = edgeGroups.get(key);
 
-    neighbors.forEach(([neighborRow, neighborCol], edgeIndex) => {
-      const neighborHex = hexById.get(`${neighborRow}-${neighborCol}`);
-      const neighborTerritoryId = neighborHex ? territoryAssignments[neighborHex.id] : '';
-
-      if (neighborTerritoryId === territoryId) {
+      if (existing) {
+        existing.count += 1;
+        existing.territories.add(territoryId);
         return;
       }
 
-      const start = points[edgeIndex];
-      const end = points[(edgeIndex + 1) % points.length];
-
-      segments.push({
-        id: `${hex.id}:${edgeIndex}`,
-        x1: start.x,
-        y1: start.y,
-        x2: end.x,
-        y2: end.y,
+      edgeGroups.set(key, {
+        coords: {
+          x1: start.x,
+          y1: start.y,
+          x2: end.x,
+          y2: end.y,
+        },
+        territories: new Set([territoryId]),
+        count: 1,
       });
+    });
+  }
+
+  const segments: BoundarySegment[] = [];
+
+  for (const [key, entry] of edgeGroups.entries()) {
+    if (entry.territories.size > 1) {
+      for (const territoryId of entry.territories) {
+        segments.push({
+          id: `${key}:${territoryId}`,
+          territoryId,
+          ...entry.coords,
+        });
+      }
+
+      continue;
+    }
+
+    const [territoryId] = Array.from(entry.territories);
+
+    if (!territoryId || entry.count > 1) {
+      continue;
+    }
+
+    segments.push({
+      id: `${key}:${territoryId}`,
+      territoryId,
+      ...entry.coords,
     });
   }
 
@@ -168,25 +209,23 @@ function parseHexPoints(points: string): Array<{ x: number; y: number }> {
   });
 }
 
-function neighborCoordinates(row: number, col: number): Array<[number, number]> {
-  if (row % 2 === 0) {
-    return [
-      [row, col + 1],
-      [row + 1, col],
-      [row + 1, col - 1],
-      [row, col - 1],
-      [row - 1, col - 1],
-      [row - 1, col],
-    ];
-  }
+function boundaryStyle(territoryId: string) {
+  const territory = territoryById(territoryId);
+  const color = territory ? factionColor(territory.stats.dominantFaction) : '#dcefff';
 
-  return [
-    [row, col + 1],
-    [row + 1, col + 1],
-    [row + 1, col],
-    [row, col - 1],
-    [row - 1, col],
-    [row - 1, col + 1],
-  ];
+  return {
+    '--boundary-color': color,
+  };
+}
+
+function territoryById(territoryId: string): Territory | null {
+  return territories.value.find((territory) => territory.id === territoryId) ?? null;
+}
+
+function edgeKey(x1: number, y1: number, x2: number, y2: number): string {
+  const start = `${x1.toFixed(2)},${y1.toFixed(2)}`;
+  const end = `${x2.toFixed(2)},${y2.toFixed(2)}`;
+
+  return start < end ? `${start}|${end}` : `${end}|${start}`;
 }
 </script>
