@@ -22,11 +22,14 @@
       >
         <g>
           <polygon
-            v-for="hex in assignedHexes"
+            v-for="hex in hexes"
             :key="hex.id"
             :points="hex.points"
             class="campaign-map-hex"
-            :class="{ 'is-active': activeTerritoryId === assignments[hex.id] }"
+            :class="{
+              'is-assigned': Boolean(assignments[hex.id]),
+              'is-active': activeTerritoryId === assignments[hex.id],
+            }"
             @mouseenter="setActiveTerritory(assignments[hex.id])"
             @mouseleave="clearHover"
             @click="pinTerritory(assignments[hex.id])"
@@ -48,12 +51,7 @@ import { storeToRefs } from 'pinia';
 import campaignMap from '@/assets/maps/campaign-map.webp';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
-import {
-  HEX_MAP_HEIGHT,
-  HEX_MAP_WIDTH,
-  buildHexGrid,
-  loadStoredHexAssignments,
-} from '@/utils/hexMap';
+import { HEX_MAP_HEIGHT, HEX_MAP_WIDTH, buildHexGrid, loadStoredHexAssignments } from '@/utils/hexMap';
 
 const appStore = useAppStore();
 const { territories } = storeToRefs(appStore);
@@ -62,10 +60,6 @@ const assignments = ref<Record<string, string>>({});
 const activeTerritoryId = ref('');
 const pinnedTerritoryId = ref('');
 const hexes = computed(() => buildHexGrid());
-
-const assignedHexes = computed(() =>
-  hexes.value.filter((hex) => Boolean(assignments.value[hex.id])),
-);
 
 const activeTerritory = computed(() =>
   territories.value.find((territory) => territory.id === activeTerritoryId.value) ?? null,

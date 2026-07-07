@@ -141,14 +141,21 @@ export const useAppStore = defineStore('app', {
         this.isLoading = false;
       }
     },
-    logout() {
-      this.user = null;
-      this.armies = [];
-      this.factions = [];
-      this.territories = [];
-      this.recentMatches = [];
-      this.hasBootstrapped = false;
-      this.bootstrapErrors = [];
+    async logout() {
+      this.isLoading = true;
+
+      try {
+        await api.logout();
+      } finally {
+        this.user = null;
+        this.armies = [];
+        this.factions = [];
+        this.territories = [];
+        this.recentMatches = [];
+        this.hasBootstrapped = false;
+        this.bootstrapErrors = [];
+        this.isLoading = false;
+      }
     },
   },
 });

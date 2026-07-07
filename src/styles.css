@@ -627,7 +627,8 @@ button {
   position: relative;
 }
 
-.campaign-map {
+.campaign-map,
+.campaign-map-overlay {
   width: 100%;
   height: auto;
   display: block;
@@ -663,24 +664,27 @@ button {
 .campaign-map-overlay {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: auto;
-  display: block;
   z-index: 1;
 }
 
 .campaign-map-hex {
-  fill: rgba(47, 111, 221, 0.12);
-  stroke: rgba(47, 111, 221, 0.58);
-  stroke-width: 1.5;
+  fill: rgba(47, 111, 221, 0.04);
+  stroke: rgba(150, 188, 255, 0.22);
+  stroke-width: 1.4;
   cursor: pointer;
   transition: fill 120ms ease, stroke 120ms ease, opacity 120ms ease;
+}
+
+.campaign-map-hex.is-assigned {
+  fill: rgba(47, 111, 221, 0.16);
+  stroke: rgba(150, 188, 255, 0.7);
+  opacity: 0.96;
 }
 
 .campaign-map-hex:hover,
 .campaign-map-hex.is-active {
   fill: rgba(47, 111, 221, 0.28);
-  stroke: #8fb6ff;
+  stroke: rgba(207, 226, 255, 0.96);
   stroke-width: 2.4;
 }
 

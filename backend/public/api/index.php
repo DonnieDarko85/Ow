@@ -404,6 +404,32 @@ if ($method === 'POST' && $path === '/auth/login') {
     ]);
 }
 
+if ($method === 'POST' && $path === '/auth/logout') {
+    $_SESSION = [];
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            '',
+            [
+                'expires' => time() - 42000,
+                'path' => $params['path'] ?: '/',
+                'domain' => $params['domain'] ?: '',
+                'secure' => (bool) $params['secure'],
+                'httponly' => (bool) $params['httponly'],
+                'samesite' => $params['samesite'] ?? 'Lax',
+            ]
+        );
+
+        session_destroy();
+    }
+
+    jsonResponse([
+        'message' => 'Logout effettuato con successo.',
+    ]);
+}
+
 if ($method === 'GET' && $path === '/armies') {
     if (tableExists($pdo, 'factions') && columnExists($pdo, 'armies', 'faction_id')) {
         $stmt = $pdo->query('

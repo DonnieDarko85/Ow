@@ -119,7 +119,7 @@ const isNavItemActive = (matchNames: string[]) =>
   route.name !== undefined && matchNames.includes(String(route.name));
 
 const handleLogout = async () => {
-  appStore.logout();
+  await appStore.logout();
   await router.push({ name: 'dashboard' });
 };
 
