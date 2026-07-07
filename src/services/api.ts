@@ -1,5 +1,5 @@
 import { appConfig, armies, currentUser, factions, recentMatches, territories } from '@/mocks/data';
-import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, CreateTerritoryPayload, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, UpdateProfilePayload, UserLookup, UserProfile } from '@/types';
+import type { AdminMatchRecord, AdminUserRecord, AppConfig, Army, AuthResult, CreateTerritoryPayload, FactionDefinition, MatchSummary, MeResult, PendingMatchSuggestion, PendingOwnMatch, RegisterPayload, SubmitResultPayload, Territory, TerritoryMapPayload, UpdateProfilePayload, UserLookup, UserProfile } from '@/types';
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const apiBaseUrls = configuredApiBaseUrl
@@ -123,6 +123,45 @@ export const api = {
     return request<{ message: string; territory: Territory }>('/admin/territories', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+  async getTerritoryMap(): Promise<Record<string, string>> {
+    if (apiBaseUrls[0] === '') {
+      try {
+        const stored = window.localStorage.getItem('ow-admin-hex-map-v1');
+        if (!stored) {
+          return {};
+        }
+
+        const parsed = JSON.parse(stored) as TerritoryMapPayload;
+        return parsed.assignments ?? {};
+      } catch {
+        return {};
+      }
+    }
+
+    const result = await request<TerritoryMapPayload>('/territory-map');
+    return result.assignments ?? {};
+  },
+  async saveAdminTerritoryMap(assignments: Record<string, string>): Promise<{ message: string; assignments: Record<string, string> }> {
+    if (apiBaseUrls[0] === '') {
+      window.localStorage.setItem(
+        'ow-admin-hex-map-v1',
+        JSON.stringify({
+          version: 1,
+          assignments,
+        }),
+      );
+
+      return {
+        message: 'Mappa territori salvata in modalita locale.',
+        assignments,
+      };
+    }
+
+    return request<{ message: string; assignments: Record<string, string> }>('/admin/territory-map', {
+      method: 'PUT',
+      body: JSON.stringify({ assignments }),
     });
   },
   async getRecentMatches(): Promise<MatchSummary[]> {

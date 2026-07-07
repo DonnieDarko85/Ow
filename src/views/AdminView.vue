@@ -178,7 +178,7 @@
         </div>
       </div>
       <p class="muted-copy">
-        Prima versione dell editor admin: hover esagono per esagono, selezione multipla, assegnazione al territorio e persistenza locale con export/import JSON.
+        Editor admin per assegnare gli esagoni ai territori, con caricamento e salvataggio esplicito della mappa condivisa lato server.
       </p>
       <AdminHexMapEditor :territories="territories" />
     </section>

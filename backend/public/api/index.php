@@ -862,6 +862,135 @@ if ($method === 'GET' && $path === '/territories') {
     jsonResponse($territories);
 }
 
+if ($method === 'GET' && $path === '/territory-map') {
+    $stmt = $pdo->query("
+        SELECT
+            tha.hex_id AS hexId,
+            tha.territory_id AS territoryId
+        FROM territory_hex_assignments tha
+        INNER JOIN territories t ON t.id = tha.territory_id
+        WHERE t.is_active = 1
+        ORDER BY tha.hex_id
+    ");
+
+    $assignments = [];
+
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $hexId = trim((string) ($row['hexId'] ?? ''));
+        $territoryId = trim((string) ($row['territoryId'] ?? ''));
+
+        if ($hexId === '' || $territoryId === '') {
+            continue;
+        }
+
+        $assignments[$hexId] = $territoryId;
+    }
+
+    jsonResponse([
+        'assignments' => $assignments,
+    ]);
+}
+
+if ($method === 'PUT' && $path === '/admin/territory-map') {
+    requireAdmin($pdo);
+
+    $rawAssignments = $payload['assignments'] ?? null;
+
+    if (! is_array($rawAssignments)) {
+        jsonResponse(['error' => 'Formato assegnazioni non valido.'], 422);
+    }
+
+    $assignments = [];
+    $territoryIds = [];
+
+    foreach ($rawAssignments as $hexId => $territoryId) {
+        $normalizedHexId = trim((string) $hexId);
+        $normalizedTerritoryId = trim((string) $territoryId);
+
+        if ($normalizedHexId === '' || $normalizedTerritoryId === '') {
+            continue;
+        }
+
+        if (! preg_match('/^\d+\-\d+$/', $normalizedHexId)) {
+            jsonResponse(['error' => sprintf('Hex ID non valido: %s', $normalizedHexId)], 422);
+        }
+
+        $assignments[$normalizedHexId] = $normalizedTerritoryId;
+        $territoryIds[$normalizedTerritoryId] = true;
+    }
+
+    if ($territoryIds !== []) {
+        $territoryIdValues = array_keys($territoryIds);
+        $placeholders = implode(', ', array_fill(0, count($territoryIdValues), '?'));
+        $territoryStmt = $pdo->prepare("
+            SELECT id
+            FROM territories
+            WHERE is_active = 1
+              AND id IN ($placeholders)
+        ");
+        $territoryStmt->execute($territoryIdValues);
+
+        $validTerritoryIds = array_fill_keys(
+            array_map(
+                static fn (array $row): string => (string) $row['id'],
+                $territoryStmt->fetchAll(PDO::FETCH_ASSOC)
+            ),
+            true
+        );
+
+        foreach ($territoryIdValues as $territoryId) {
+            if (! isset($validTerritoryIds[$territoryId])) {
+                jsonResponse(['error' => 'Una o piu assegnazioni puntano a territori non validi.'], 422);
+            }
+        }
+    }
+
+    $pdo->beginTransaction();
+
+    try {
+        $pdo->exec('DELETE FROM territory_hex_assignments');
+
+        if ($assignments !== []) {
+            $insertStmt = $pdo->prepare("
+                INSERT INTO territory_hex_assignments (
+                    hex_id,
+                    territory_id,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    :hex_id,
+                    :territory_id,
+                    NOW(),
+                    NOW()
+                )
+            ");
+
+            foreach ($assignments as $hexId => $territoryId) {
+                $insertStmt->execute([
+                    'hex_id' => $hexId,
+                    'territory_id' => $territoryId,
+                ]);
+            }
+        }
+
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        jsonResponse([
+            'error' => 'Salvataggio mappa territorio non riuscito.',
+            'details' => $exception->getMessage(),
+        ], 500);
+    }
+
+    jsonResponse([
+        'message' => 'Mappa territori salvata correttamente.',
+        'assignments' => $assignments,
+    ]);
+}
+
 if ($method === 'GET' && $path === '/matches/recent') {
     $stmt = $pdo->query("
         SELECT

@@ -191,3 +191,7 @@ export interface CreateTerritoryPayload {
   lore?: string;
   mapPathId?: string;
 }
+
+export interface TerritoryMapPayload {
+  assignments: Record<string, string>;
+}

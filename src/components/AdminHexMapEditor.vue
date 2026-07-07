@@ -73,6 +73,15 @@
           <span v-if="hoveredTerritory">({{ hoveredTerritory.name }})</span>
         </span>
       </p>
+      <div class="admin-map-persist-actions">
+        <button class="primary-button admin-inline-button" type="button" :disabled="isSavingMap" @click="saveSharedMap">
+          Salva mappa condivisa
+        </button>
+        <button class="secondary-button admin-inline-button" type="button" :disabled="isLoadingMap" @click="loadSharedMap">
+          Ricarica dal server
+        </button>
+        <span v-if="message" class="muted-copy">{{ message }}</span>
+      </div>
     </div>
 
     <div class="admin-map-stage">
@@ -196,6 +205,8 @@ const jsonBuffer = ref('');
 const message = ref('');
 const creationMessage = ref('');
 const isCreatingTerritory = ref(false);
+const isSavingMap = ref(false);
+const isLoadingMap = ref(false);
 const territoryForm = ref({
   name: '',
   description: '',
@@ -252,7 +263,7 @@ watch(
 
 onMounted(() => {
   selectedTerritoryId.value = sortedTerritories.value[0]?.id ?? '';
-  assignments.value = loadStoredHexAssignments();
+  void loadSharedMap();
 });
 
 function toggleHexSelection(hexId: string) {
@@ -290,7 +301,7 @@ function assignSelection() {
   assignments.value = nextAssignments;
   selectedHexIds.value = [];
   hoveredHexId.value = '';
-  message.value = `Assegnati ${assignedCount} esagoni.`;
+  message.value = `Assegnati ${assignedCount} esagoni. Salva la mappa condivisa per pubblicarla.`;
 }
 
 function clearAssignment() {
@@ -304,7 +315,7 @@ function clearAssignment() {
   assignments.value = nextAssignments;
   selectedHexIds.value = [];
   hoveredHexId.value = '';
-  message.value = `Assegnazione rimossa da ${clearedCount} esagoni.`;
+  message.value = `Assegnazione rimossa da ${clearedCount} esagoni. Salva la mappa condivisa per pubblicarla.`;
 }
 
 function clearSelection() {
@@ -315,7 +326,7 @@ function resetAssignments() {
   assignments.value = {};
   selectedHexIds.value = [];
   hoveredHexId.value = '';
-  message.value = 'Mappatura azzerata.';
+  message.value = 'Mappatura azzerata in bozza. Salva la mappa condivisa per pubblicarla.';
 }
 
 function selectTerritoryHexes(territoryId: string) {
@@ -345,9 +356,41 @@ function importAssignments() {
     assignments.value = parsed.assignments ?? {};
     selectedHexIds.value = [];
     hoveredHexId.value = '';
-    message.value = 'Import completato.';
+    message.value = 'Import completato. Salva la mappa condivisa per pubblicarla.';
   } catch {
     message.value = 'JSON non valido.';
+  }
+}
+
+async function loadSharedMap() {
+  isLoadingMap.value = true;
+
+  try {
+    assignments.value = await api.getTerritoryMap();
+    selectedHexIds.value = [];
+    hoveredHexId.value = '';
+    message.value = 'Mappa condivisa caricata dal server.';
+  } catch (error) {
+    assignments.value = loadStoredHexAssignments();
+    message.value = error instanceof Error
+      ? `${error.message} Uso la bozza locale del browser.`
+      : 'Caricamento server non riuscito. Uso la bozza locale del browser.';
+  } finally {
+    isLoadingMap.value = false;
+  }
+}
+
+async function saveSharedMap() {
+  isSavingMap.value = true;
+
+  try {
+    const result = await api.saveAdminTerritoryMap(assignments.value);
+    assignments.value = result.assignments;
+    message.value = result.message;
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Salvataggio mappa non riuscito.';
+  } finally {
+    isSavingMap.value = false;
   }
 }
 
@@ -411,6 +454,13 @@ async function createTerritory() {
 .admin-map-bottom {
   display: grid;
   gap: 1rem;
+}
+
+.admin-map-persist-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .admin-map-toolbar {

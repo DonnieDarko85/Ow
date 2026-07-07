@@ -46,6 +46,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import campaignMap from '@/assets/maps/campaign-map.webp';
+import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 import {
   HEX_MAP_HEIGHT,
@@ -71,8 +72,16 @@ const activeTerritory = computed(() =>
 );
 
 onMounted(() => {
-  assignments.value = loadStoredHexAssignments();
+  void loadAssignments();
 });
+
+async function loadAssignments() {
+  try {
+    assignments.value = await api.getTerritoryMap();
+  } catch {
+    assignments.value = loadStoredHexAssignments();
+  }
+}
 
 function setActiveTerritory(territoryId?: string) {
   if (!territoryId) {
