@@ -223,8 +223,8 @@ function hexStyle(territoryId: string | undefined, isActive: boolean) {
   const territory = territoryId ? territoryById(territoryId) : null;
   const color = territoryDominanceColor(territory);
   return {
-    '--territory-fill': hexToRgba(color, isActive ? 0.28 : 0.18),
-    '--territory-stroke': hexToRgba(color, isActive ? 0.96 : 0.34),
+    '--territory-fill': hexToRgba(color, isActive ? 0.4 : 0.3),
+    '--territory-stroke': hexToRgba(color, isActive ? 0.98 : 0.52),
   };
 }
 
@@ -247,7 +247,8 @@ function territoryDominanceColor(territory: Territory | null) {
     return '#ffffff';
   }
 
-  return mixHexColors('#ffffff', factionColor(leader.faction), Math.min(lead / 5, 1));
+  const intensity = Math.min(0.35 + ((lead - 1) * 0.1625), 1);
+  return mixHexColors('#ffffff', factionColor(leader.faction), intensity);
 }
 
 function territoryById(territoryId: string): Territory | null {
