@@ -30,6 +30,7 @@
               'is-active': activeTerritoryId === assignments[hex.id],
               'is-assigned': Boolean(assignments[hex.id]),
             }"
+            :style="hexStyle(assignments[hex.id], activeTerritoryId === assignments[hex.id])"
             @mouseenter="setActiveTerritory(assignments[hex.id])"
             @mouseleave="clearHover"
             @click="pinTerritory(assignments[hex.id])"
@@ -60,7 +61,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import campaignMap from '@/assets/maps/campaign-map.webp';
+import campaignMap from '@/assets/maps/campaign-map.jpeg';
 import { api } from '@/services/api';
 import { useTheme } from '@/composables/useTheme';
 import { useAppStore } from '@/stores/app';
@@ -211,15 +212,80 @@ function parseHexPoints(points: string): Array<{ x: number; y: number }> {
 
 function boundaryStyle(territoryId: string) {
   const territory = territoryById(territoryId);
-  const color = territory ? factionColor(territory.stats.dominantFaction) : '#dcefff';
+  const color = territoryDominanceColor(territory);
 
   return {
     '--boundary-color': color,
   };
 }
 
+function hexStyle(territoryId: string | undefined, isActive: boolean) {
+  const territory = territoryId ? territoryById(territoryId) : null;
+  const color = territoryDominanceColor(territory);
+  return {
+    '--territory-fill': hexToRgba(color, isActive ? 0.28 : 0.18),
+    '--territory-stroke': hexToRgba(color, isActive ? 0.96 : 0.34),
+  };
+}
+
+function territoryDominanceColor(territory: Territory | null) {
+  if (!territory) {
+    return '#ffffff';
+  }
+
+  const topEntries = [...territory.stats.factionControl].sort((left, right) => right.wins - left.wins);
+  const leader = topEntries[0];
+  const runnerUp = topEntries[1];
+
+  if (!leader || leader.wins <= 0) {
+    return '#ffffff';
+  }
+
+  const lead = leader.wins - (runnerUp?.wins ?? 0);
+
+  if (lead <= 0) {
+    return '#ffffff';
+  }
+
+  return mixHexColors('#ffffff', factionColor(leader.faction), Math.min(lead / 5, 1));
+}
+
 function territoryById(territoryId: string): Territory | null {
   return territories.value.find((territory) => territory.id === territoryId) ?? null;
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const [red, green, blue] = hexToRgb(hex);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function mixHexColors(fromHex: string, toHex: string, weight: number) {
+  const [fromRed, fromGreen, fromBlue] = hexToRgb(fromHex);
+  const [toRed, toGreen, toBlue] = hexToRgb(toHex);
+  const clampedWeight = Math.max(0, Math.min(weight, 1));
+
+  const mixed = [fromRed, fromGreen, fromBlue].map((channel, index) =>
+    Math.round(channel + (([toRed, toGreen, toBlue][index] - channel) * clampedWeight)),
+  );
+
+  return rgbToHex(mixed[0], mixed[1], mixed[2]);
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const normalized = hex.replace('#', '');
+  const value = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized;
+
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ];
+}
+
+function rgbToHex(red: number, green: number, blue: number) {
+  return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function edgeKey(x1: number, y1: number, x2: number, y2: number): string {

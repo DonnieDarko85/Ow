@@ -1214,6 +1214,8 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
     $matchId = $matches[1];
     $territoryId = trim((string) ($payload['territoryId'] ?? ''));
     $status = strtoupper(trim((string) ($payload['status'] ?? 'PENDING')));
+    $armyAId = trim((string) ($payload['armyAId'] ?? ''));
+    $armyBId = trim((string) ($payload['armyBId'] ?? ''));
     $playedAt = trim((string) ($payload['playedAt'] ?? ''));
     $victoryPointsA = (int) ($payload['victoryPointsA'] ?? 0);
     $victoryPointsB = (int) ($payload['victoryPointsB'] ?? 0);
@@ -1230,9 +1232,22 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
         jsonResponse(['error' => 'I punti vittoria non possono essere negativi.'], 422);
     }
 
+    $armyAFaction = $armyAId !== '' ? findArmyFactionCode($pdo, $armyAId) : null;
+    $armyBFaction = $armyBId !== '' ? findArmyFactionCode($pdo, $armyBId) : null;
+
+    if ($armyAId !== '' && $armyAFaction === null) {
+        jsonResponse(['error' => 'Armata giocatore A non valida.'], 422);
+    }
+
+    if ($armyBId !== '' && $armyBFaction === null) {
+        jsonResponse(['error' => 'Armata giocatore B non valida.'], 422);
+    }
+
     $matchLookupStmt = $pdo->prepare("
         SELECT
             m.id,
+            m.status,
+            m.confirmed_at AS confirmedAt,
             m.player_a_id AS playerAId,
             m.player_b_id AS playerBId,
             resultA.id AS resultAId,
@@ -1268,7 +1283,7 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
                 $winnerUserId = (string) $matchData['playerBId'];
             }
 
-            $confirmedAt = date('Y-m-d H:i:s');
+            $confirmedAt = $matchData['confirmedAt'] ?: date('Y-m-d H:i:s');
         }
 
         $updateMatchStmt = $pdo->prepare("
@@ -1293,7 +1308,9 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
         if ($matchData['resultAId']) {
             $updateResultAStmt = $pdo->prepare("
                 UPDATE match_results
-                SET own_score = :own_score,
+                SET own_army_id = :own_army_id,
+                    own_faction = :own_faction,
+                    own_score = :own_score,
                     opponent_score = :opponent_score,
                     status = :status,
                     updated_at = NOW()
@@ -1301,6 +1318,49 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
             ");
             $updateResultAStmt->execute([
                 'id' => $matchData['resultAId'],
+                'own_army_id' => $armyAId !== '' ? $armyAId : null,
+                'own_faction' => $armyAFaction,
+                'own_score' => $victoryPointsA,
+                'opponent_score' => $victoryPointsB,
+                'status' => $status,
+            ]);
+        } elseif ($armyAId !== '') {
+            $insertResultAStmt = $pdo->prepare("
+                INSERT INTO match_results (
+                    id,
+                    match_id,
+                    submitted_by_user_id,
+                    opponent_user_id,
+                    own_army_id,
+                    own_faction,
+                    own_score,
+                    opponent_score,
+                    status,
+                    note,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    :id,
+                    :match_id,
+                    :submitted_by_user_id,
+                    :opponent_user_id,
+                    :own_army_id,
+                    :own_faction,
+                    :own_score,
+                    :opponent_score,
+                    :status,
+                    '',
+                    NOW(),
+                    NOW()
+                )
+            ");
+            $insertResultAStmt->execute([
+                'id' => uuidV4(),
+                'match_id' => $matchId,
+                'submitted_by_user_id' => $matchData['playerAId'],
+                'opponent_user_id' => $matchData['playerBId'],
+                'own_army_id' => $armyAId,
+                'own_faction' => $armyAFaction,
                 'own_score' => $victoryPointsA,
                 'opponent_score' => $victoryPointsB,
                 'status' => $status,
@@ -1310,7 +1370,9 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
         if ($matchData['resultBId']) {
             $updateResultBStmt = $pdo->prepare("
                 UPDATE match_results
-                SET own_score = :own_score,
+                SET own_army_id = :own_army_id,
+                    own_faction = :own_faction,
+                    own_score = :own_score,
                     opponent_score = :opponent_score,
                     status = :status,
                     updated_at = NOW()
@@ -1318,6 +1380,49 @@ if ($method === 'PATCH' && preg_match('#^/admin/matches/([A-Za-z0-9-]+)$#', $pat
             ");
             $updateResultBStmt->execute([
                 'id' => $matchData['resultBId'],
+                'own_army_id' => $armyBId !== '' ? $armyBId : null,
+                'own_faction' => $armyBFaction,
+                'own_score' => $victoryPointsB,
+                'opponent_score' => $victoryPointsA,
+                'status' => $status,
+            ]);
+        } elseif ($armyBId !== '') {
+            $insertResultBStmt = $pdo->prepare("
+                INSERT INTO match_results (
+                    id,
+                    match_id,
+                    submitted_by_user_id,
+                    opponent_user_id,
+                    own_army_id,
+                    own_faction,
+                    own_score,
+                    opponent_score,
+                    status,
+                    note,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    :id,
+                    :match_id,
+                    :submitted_by_user_id,
+                    :opponent_user_id,
+                    :own_army_id,
+                    :own_faction,
+                    :own_score,
+                    :opponent_score,
+                    :status,
+                    '',
+                    NOW(),
+                    NOW()
+                )
+            ");
+            $insertResultBStmt->execute([
+                'id' => uuidV4(),
+                'match_id' => $matchId,
+                'submitted_by_user_id' => $matchData['playerBId'],
+                'opponent_user_id' => $matchData['playerAId'],
+                'own_army_id' => $armyBId,
+                'own_faction' => $armyBFaction,
                 'own_score' => $victoryPointsB,
                 'opponent_score' => $victoryPointsA,
                 'status' => $status,
@@ -2006,6 +2111,37 @@ function incrementWeightedCount(array &$bucket, string $key, float $amount): voi
     $bucket[$key] += $amount;
 }
 
+function findArmyFactionCode(PDO $pdo, string $armyId): ?string
+{
+    if (tableExists($pdo, 'factions') && columnExists($pdo, 'armies', 'faction_id')) {
+        $stmt = $pdo->prepare('
+            SELECT COALESCE(f.code, a.default_faction) AS factionCode
+            FROM armies a
+            LEFT JOIN factions f ON f.id = a.faction_id
+            WHERE a.id = :id
+              AND a.is_active = 1
+            LIMIT 1
+        ');
+    } else {
+        $stmt = $pdo->prepare('
+            SELECT default_faction AS factionCode
+            FROM armies
+            WHERE id = :id
+              AND is_active = 1
+            LIMIT 1
+        ');
+    }
+
+    $stmt->execute(['id' => $armyId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $row || ! isset($row['factionCode']) || ! is_string($row['factionCode']) || $row['factionCode'] === '') {
+        return null;
+    }
+
+    return $row['factionCode'];
+}
+
 function buildTerritoryStatsPayload(
     int $confirmedBattles,
     int $pendingBattles,
@@ -2022,12 +2158,19 @@ function buildTerritoryStatsPayload(
         $factionControl[] = [
             'faction' => $factionCode,
             'percentage' => $percentage,
+            'wins' => $value,
         ];
     }
 
     usort(
         $factionControl,
         static function (array $left, array $right): int {
+            $winsComparison = $right['wins'] <=> $left['wins'];
+
+            if ($winsComparison !== 0) {
+                return $winsComparison;
+            }
+
             return $right['percentage'] <=> $left['percentage'];
         }
     );

@@ -101,6 +101,14 @@
           <h3>Partite e risultati</h3>
         </div>
         <div class="admin-panel-tools">
+          <label class="admin-filter">
+            <span class="sr-only">Filtra partite per stato</span>
+            <select v-model="matchStatusFilter">
+              <option v-for="option in matchStatusOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
           <label class="admin-search">
             <span class="sr-only">Cerca partite</span>
             <input
@@ -116,8 +124,13 @@
       <div class="admin-list">
         <article v-for="match in filteredAdminMatches" :key="match.id" class="admin-card">
           <div class="admin-card-head">
-            <strong>{{ match.playerAName }} vs {{ match.playerBName }}</strong>
-            <span class="muted-copy">{{ match.territoryName }}</span>
+            <div class="admin-card-title">
+              <strong>{{ match.playerAName }} vs {{ match.playerBName }}</strong>
+              <span class="muted-copy">{{ match.territoryName }}</span>
+            </div>
+            <span class="admin-status-badge" :class="matchStatusClass(match.status)">
+              {{ matchStatusLabel(match.status) }}
+            </span>
           </div>
 
           <div class="admin-match-grid">
@@ -133,10 +146,29 @@
             <label>
               <span>Stato</span>
               <select v-model="match.status">
-                <option value="PENDING">Pending</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="CONFLICT">Conflict</option>
-                <option value="CANCELLED">Cancelled</option>
+                <option v-for="option in matchStatusOptions.slice(1)" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+
+            <label>
+              <span>Armata {{ match.playerAName }}</span>
+              <select v-model="match.armyAId">
+                <option :value="null">Nessuna</option>
+                <option v-for="army in armies" :key="army.id" :value="army.id">
+                  {{ army.name }}
+                </option>
+              </select>
+            </label>
+
+            <label>
+              <span>Armata {{ match.playerBName }}</span>
+              <select v-model="match.armyBId">
+                <option :value="null">Nessuna</option>
+                <option v-for="army in armies" :key="army.id" :value="army.id">
+                  {{ army.name }}
+                </option>
               </select>
             </label>
 
@@ -192,7 +224,7 @@ import AdminHexMapEditor from '@/components/AdminHexMapEditor.vue';
 import SectionHeader from '@/components/SectionHeader.vue';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
-import type { AdminMatchRecord, AdminUserRecord } from '@/types';
+import type { AdminMatchRecord, AdminUserRecord, MatchStatus } from '@/types';
 import { calculateMatchPoints } from '@/utils/matchScoring';
 
 const appStore = useAppStore();
@@ -210,6 +242,22 @@ const adminMatches = ref<AdminMatchRecord[]>([]);
 const adminMessage = ref('');
 const userSearch = ref('');
 const matchSearch = ref('');
+const matchStatusFilter = ref<'ALL' | MatchStatus>('ALL');
+
+const matchStatusOptions: Array<{ value: 'ALL' | MatchStatus; label: string }> = [
+  { value: 'ALL', label: 'Tutti gli stati' },
+  { value: 'PENDING', label: 'Da confermare' },
+  { value: 'CONFIRMED', label: 'Confermati' },
+  { value: 'CONFLICT', label: 'In conflitto' },
+  { value: 'CANCELLED', label: 'Cancellati' },
+];
+
+const matchStatusLabels: Record<MatchStatus, string> = {
+  PENDING: 'Da confermare',
+  CONFIRMED: 'Confermato',
+  CONFLICT: 'In conflitto',
+  CANCELLED: 'Cancellato',
+};
 
 const filteredAdminUsers = computed(() => {
   const query = userSearch.value.trim().toLowerCase();
@@ -224,17 +272,20 @@ const filteredAdminUsers = computed(() => {
 
 const filteredAdminMatches = computed(() => {
   const query = matchSearch.value.trim().toLowerCase();
-  if (!query) {
-    return adminMatches.value;
-  }
-
   return adminMatches.value.filter((match) => {
-    return (
+    const matchesQuery =
+      query === '' ||
       match.playerAName.toLowerCase().includes(query) ||
-      match.playerBName.toLowerCase().includes(query)
-    );
+      match.playerBName.toLowerCase().includes(query);
+    const matchesStatus =
+      matchStatusFilter.value === 'ALL' || match.status === matchStatusFilter.value;
+    return matchesQuery && matchesStatus;
   });
 });
+
+const matchStatusLabel = (status: MatchStatus) => matchStatusLabels[status];
+
+const matchStatusClass = (status: MatchStatus) => `is-${status.toLowerCase()}`;
 
 onMounted(async () => {
   if (!appStore.hasBootstrapped) {
@@ -270,7 +321,15 @@ async function saveUser(entry: AdminUserRecord) {
 }
 
 async function saveMatch(entry: AdminMatchRecord) {
-  const result = await api.updateAdminMatch(entry.id, entry);
+  const result = await api.updateAdminMatch(entry.id, {
+    territoryId: entry.territoryId,
+    status: entry.status,
+    armyAId: entry.armyAId,
+    armyBId: entry.armyBId,
+    playedAt: entry.playedAt,
+    victoryPointsA: entry.victoryPointsA,
+    victoryPointsB: entry.victoryPointsB,
+  });
   adminMessage.value = result.message;
   const recalculated = calculateMatchPoints(result.match.victoryPointsA, result.match.victoryPointsB);
   const index = adminMatches.value.findIndex((match) => match.id === entry.id);

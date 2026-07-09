@@ -39,6 +39,7 @@ export interface TerritoryStats {
   factionControl: Array<{
     faction: Faction;
     percentage: number;
+    wins: number;
   }>;
   armyControl: Array<{
     armyName: string;

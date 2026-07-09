@@ -175,7 +175,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import campaignMap from '@/assets/maps/campaign-map.webp';
+import campaignMap from '@/assets/maps/campaign-map.jpeg';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 import type { Territory } from '@/types';
@@ -396,8 +396,8 @@ async function saveSharedMap() {
 
 function hexStyle(hexId: string) {
   return {
-    '--hex-fill': assignments.value[hexId] ? 'rgba(47, 111, 221, 0.16)' : 'rgba(255, 255, 255, 0.04)',
-    '--hex-stroke': assignments.value[hexId] ? 'rgba(47, 111, 221, 0.7)' : 'rgba(255, 255, 255, 0.22)',
+    '--hex-fill': assignments.value[hexId] ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.04)',
+    '--hex-stroke': assignments.value[hexId] ? 'rgba(255, 255, 255, 0.72)' : 'rgba(255, 255, 255, 0.22)',
   };
 }
 
@@ -522,13 +522,13 @@ async function createTerritory() {
 
 .admin-map-hex:hover,
 .admin-map-hex.is-hovered {
-  fill: rgba(94, 146, 255, 0.2);
-  stroke: rgba(148, 188, 255, 0.96);
+  fill: rgba(255, 255, 255, 0.16);
+  stroke: rgba(255, 255, 255, 0.88);
 }
 
 .admin-map-hex.is-selected {
-  fill: rgba(47, 111, 221, 0.28);
-  stroke: #5e92ff;
+  fill: rgba(255, 255, 255, 0.22);
+  stroke: rgba(255, 255, 255, 0.96);
   stroke-width: 2.4;
 }
 
@@ -571,7 +571,7 @@ async function createTerritory() {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.85rem 1rem;
-  border: 1px solid rgba(47, 111, 221, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-left-width: 4px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.02);
@@ -583,7 +583,7 @@ async function createTerritory() {
 
 .admin-map-json {
   min-height: 220px;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-family: inherit;
 }
 
 @media (max-width: 960px) {

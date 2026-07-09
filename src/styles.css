@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "EB Garamond";
+  src: url("./assets/fonts/EBGaramond-VariableFont_wght.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 800;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("./assets/fonts/EBGaramond-Italic-VariableFont_wght.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400 800;
+}
+
 :root {
   --bg: #090909;
   --bg-soft: #141414;
@@ -22,7 +36,7 @@
   --ornate-frame-bottom: url("./assets/frames/frame-bottom-thin.png");
   --ornate-frame-left: url("./assets/frames/frame-left-thin.png");
   --ornate-frame-right: url("./assets/frames/frame-right-thin.png");
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "EB Garamond", Georgia, "Times New Roman", serif;
   line-height: 1.5;
   font-weight: 400;
   color: var(--text);
@@ -668,8 +682,8 @@ button {
 }
 
 .campaign-map-hex {
-  fill: rgba(47, 111, 221, 0.16);
-  stroke: rgba(150, 188, 255, 0.22);
+  fill: var(--territory-fill, rgba(255, 255, 255, 0.14));
+  stroke: var(--territory-stroke, rgba(255, 255, 255, 0.26));
   stroke-width: 1.4;
   cursor: pointer;
   transition: fill 120ms ease, stroke 120ms ease, opacity 120ms ease;
@@ -680,8 +694,6 @@ button {
 }
 
 .campaign-map-hex.is-active {
-  fill: rgba(47, 111, 221, 0.28);
-  stroke: rgba(207, 226, 255, 0.96);
   stroke-width: 2.4;
 }
 
@@ -1031,6 +1043,14 @@ button {
   width: min(100%, 360px);
 }
 
+.admin-filter {
+  width: min(100%, 220px);
+}
+
+.admin-filter select {
+  width: 100%;
+}
+
 .admin-search input {
   width: 100%;
 }
@@ -1054,6 +1074,49 @@ button {
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.admin-card-title {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin-status-badge.is-pending {
+  border-color: rgba(232, 190, 78, 0.4);
+  background: rgba(232, 190, 78, 0.14);
+  color: #f2d27a;
+}
+
+.admin-status-badge.is-confirmed {
+  border-color: rgba(76, 175, 80, 0.4);
+  background: rgba(76, 175, 80, 0.14);
+  color: #9ee1a1;
+}
+
+.admin-status-badge.is-conflict {
+  border-color: rgba(223, 58, 64, 0.45);
+  background: rgba(223, 58, 64, 0.14);
+  color: #ff9da1;
+}
+
+.admin-status-badge.is-cancelled {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.12);
+  color: #d4dbe5;
 }
 
 .admin-user-grid,
@@ -1534,6 +1597,7 @@ textarea {
   .submit-notes,
   .submit-button {
     grid-column: 1;
+    grid-row: auto;
   }
 
   .submit-layout-spacer {
@@ -1572,7 +1636,8 @@ textarea {
   }
 
   .admin-panel-tools,
-  .admin-search {
+  .admin-search,
+  .admin-filter {
     width: 100%;
     min-width: 0;
     justify-items: stretch;
