@@ -20,6 +20,28 @@
         :viewBox="`0 0 ${HEX_MAP_WIDTH} ${HEX_MAP_HEIGHT}`"
         preserveAspectRatio="xMidYMid meet"
       >
+        <defs>
+          <pattern
+            v-for="pattern in contestedPatterns"
+            :id="pattern.id"
+            :key="pattern.id"
+            patternUnits="userSpaceOnUse"
+            width="18"
+            height="18"
+            patternTransform="rotate(32)"
+          >
+            <rect width="18" height="18" :fill="pattern.baseColor" />
+            <rect
+              v-for="stripe in pattern.stripes"
+              :key="stripe.id"
+              :x="stripe.x"
+              y="0"
+              :width="stripe.width"
+              height="18"
+              :fill="stripe.color"
+            />
+          </pattern>
+        </defs>
         <g>
           <polygon
             v-for="hex in assignedHexes"
@@ -55,6 +77,56 @@
       <strong>{{ activeTerritory.name }}</strong>
       <span>{{ activeTerritory.description }}</span>
     </div>
+
+    <section v-if="activeTerritory" class="map-territory-details">
+      <div class="map-territory-summary">
+        <p class="eyebrow">Focus territorio</p>
+        <h3>{{ activeTerritory.name }}</h3>
+        <p class="muted-copy">{{ activeTerritory.description }}</p>
+
+        <div class="map-territory-metrics">
+          <article class="map-metric-card">
+            <span>Partite giocate</span>
+            <strong>{{ activeTerritoryConfirmedBattles }}</strong>
+          </article>
+          <article class="map-metric-card">
+            <span>Fazione dominante</span>
+            <strong v-if="activeTerritoryLeadingFaction">{{ factionLabel(activeTerritoryLeadingFaction) }}</strong>
+            <strong v-else-if="activeTerritoryIsContested">Conteso</strong>
+            <strong v-else>N.A.</strong>
+          </article>
+        </div>
+      </div>
+
+      <div class="map-territory-chart-card">
+        <p class="eyebrow">Controllo locale</p>
+        <div v-if="activeTerritoryHasBattleData" class="map-territory-chart-content">
+          <div class="map-territory-pie-wrap">
+            <FactionPieChart
+              class="faction-pie map-territory-pie"
+              :segments="activeTerritoryFactionControl"
+              label="Distribuzione del controllo per il territorio selezionato"
+            />
+          </div>
+
+          <div class="map-territory-legend">
+            <div
+              v-for="entry in activeTerritoryFactionControl"
+              :key="entry.faction"
+              class="map-territory-legend-item"
+            >
+              <FactionBadge :faction="entry.faction" />
+              <span>{{ entry.percentage }}% · {{ entry.wins }} vittorie</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="map-territory-empty-state">
+          <strong>N.A.</strong>
+          <span>Ancora nessuna partita confermata su questo territorio.</span>
+        </div>
+      </div>
+    </section>
   </section>
 </template>
 
@@ -62,16 +134,18 @@
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import campaignMap from '@/assets/maps/campaign-map.jpeg';
+import FactionBadge from '@/components/FactionBadge.vue';
+import FactionPieChart from '@/components/FactionPieChart.vue';
 import { api } from '@/services/api';
 import { useTheme } from '@/composables/useTheme';
 import { useAppStore } from '@/stores/app';
+import type { Faction, Territory } from '@/types';
 import type { HexCell } from '@/utils/hexMap';
-import type { Territory } from '@/types';
 import { HEX_MAP_HEIGHT, HEX_MAP_WIDTH, buildHexGrid, loadStoredHexAssignments } from '@/utils/hexMap';
 
 const appStore = useAppStore();
 const { territories } = storeToRefs(appStore);
-const { factionColor } = useTheme();
+const { factionColor, factionLabel } = useTheme();
 
 const assignments = ref<Record<string, string>>({});
 const activeTerritoryId = ref('');
@@ -79,9 +153,36 @@ const pinnedTerritoryId = ref('');
 const hexes = computed(() => buildHexGrid());
 const assignedHexes = computed(() => hexes.value.filter((hex) => Boolean(assignments.value[hex.id])));
 const boundarySegments = computed(() => buildBoundarySegments(hexes.value, assignments.value));
+const MUTED_NEUTRAL_COLOR = '#ece7df';
 
 const activeTerritory = computed(() =>
   territories.value.find((territory) => territory.id === activeTerritoryId.value) ?? null,
+);
+const activeTerritoryConfirmedBattles = computed(() => activeTerritory.value?.stats.confirmedBattles ?? 0);
+const activeTerritoryHasBattleData = computed(() => activeTerritoryConfirmedBattles.value > 0);
+const activeTerritoryFactionControl = computed(() =>
+  activeTerritory.value?.stats.factionControl.filter((entry) => entry.wins > 0) ?? [],
+);
+const activeTerritoryIsContested = computed(() =>
+  activeTerritory.value ? territoryVisualState(activeTerritory.value).status === 'contested' : false,
+);
+const activeTerritoryLeadingFaction = computed(() => {
+  const [first, second] = [...activeTerritoryFactionControl.value].sort((a, b) => b.percentage - a.percentage);
+
+  if (!first || !second) {
+    return first?.faction ?? null;
+  }
+
+  if (Math.abs(first.percentage - second.percentage) < 0.001) {
+    return null;
+  }
+
+  return first.faction;
+});
+const contestedPatterns = computed(() =>
+  territories.value
+    .map((territory) => buildContestedPattern(territory))
+    .filter((pattern): pattern is ContestedPattern => pattern !== null),
 );
 
 onMounted(() => {
@@ -128,6 +229,23 @@ interface BoundarySegment {
   y1: number;
   x2: number;
   y2: number;
+}
+
+interface TerritoryVisualState {
+  status: 'neutral' | 'dominant' | 'contested';
+  color: string;
+  tiedFactions: Faction[];
+}
+
+interface ContestedPattern {
+  id: string;
+  baseColor: string;
+  stripes: Array<{
+    id: string;
+    x: number;
+    width: number;
+    color: string;
+  }>;
 }
 
 function buildBoundarySegments(hexList: HexCell[], territoryAssignments: Record<string, string>): BoundarySegment[] {
@@ -212,25 +330,34 @@ function parseHexPoints(points: string): Array<{ x: number; y: number }> {
 
 function boundaryStyle(territoryId: string) {
   const territory = territoryById(territoryId);
-  const color = territoryDominanceColor(territory);
+  const visualState = territoryVisualState(territory);
 
   return {
-    '--boundary-color': color,
+    '--boundary-color': visualState.status === 'contested' ? 'rgba(232, 228, 220, 0.72)' : visualState.color,
   };
 }
 
 function hexStyle(territoryId: string | undefined, isActive: boolean) {
   const territory = territoryId ? territoryById(territoryId) : null;
-  const color = territoryDominanceColor(territory);
+  const visualState = territoryVisualState(territory);
+  const isNeutralTerritory = visualState.status === 'neutral';
+  const contestedPatternId = territory ? contestedPatternIdForTerritory(territory.id) : '';
+
   return {
-    '--territory-fill': hexToRgba(color, isActive ? 0.4 : 0.3),
-    '--territory-stroke': hexToRgba(color, isActive ? 0.98 : 0.52),
+    '--territory-fill': visualState.status === 'contested'
+      ? `url(#${contestedPatternId})`
+      : hexToRgba(visualState.color, isNeutralTerritory ? (isActive ? 0.36 : 0.28) : (isActive ? 0.62 : 0.52)),
+    '--territory-stroke': hexToRgba(visualState.color, isActive ? 0.98 : 0.52),
   };
 }
 
-function territoryDominanceColor(territory: Territory | null) {
+function territoryVisualState(territory: Territory | null): TerritoryVisualState {
   if (!territory) {
-    return '#ffffff';
+    return {
+      status: 'neutral',
+      color: MUTED_NEUTRAL_COLOR,
+      tiedFactions: [],
+    };
   }
 
   const topEntries = [...territory.stats.factionControl].sort((left, right) => right.wins - left.wins);
@@ -238,17 +365,32 @@ function territoryDominanceColor(territory: Territory | null) {
   const runnerUp = topEntries[1];
 
   if (!leader || leader.wins <= 0) {
-    return '#ffffff';
+    return {
+      status: 'neutral',
+      color: MUTED_NEUTRAL_COLOR,
+      tiedFactions: [],
+    };
+  }
+
+  const tiedFactions = topEntries
+    .filter((entry) => entry.wins === leader.wins && entry.wins > 0)
+    .map((entry) => entry.faction);
+
+  if (tiedFactions.length > 1) {
+    return {
+      status: 'contested',
+      color: mixFactionSetWithNeutral(tiedFactions, 0.72),
+      tiedFactions,
+    };
   }
 
   const lead = leader.wins - (runnerUp?.wins ?? 0);
-
-  if (lead <= 0) {
-    return '#ffffff';
-  }
-
-  const intensity = Math.min(0.35 + ((lead - 1) * 0.1625), 1);
-  return mixHexColors('#ffffff', factionColor(leader.faction), intensity);
+  const intensity = Math.min(0.6 + (((Math.min(lead, 5) - 1) / 4) * 0.4), 1);
+  return {
+    status: 'dominant',
+    color: mixHexColors(MUTED_NEUTRAL_COLOR, factionColor(leader.faction), intensity),
+    tiedFactions: [leader.faction],
+  };
 }
 
 function territoryById(territoryId: string): Territory | null {
@@ -270,6 +412,53 @@ function mixHexColors(fromHex: string, toHex: string, weight: number) {
   );
 
   return rgbToHex(mixed[0], mixed[1], mixed[2]);
+}
+
+function mixFactionSetWithNeutral(factions: Faction[], neutralWeight: number) {
+  const factionValues = factions.map((faction) => hexToRgb(factionColor(faction)));
+  const [neutralRed, neutralGreen, neutralBlue] = hexToRgb(MUTED_NEUTRAL_COLOR);
+
+  const average = factionValues.reduce(
+    (accumulator, current) => [
+      accumulator[0] + current[0],
+      accumulator[1] + current[1],
+      accumulator[2] + current[2],
+    ],
+    [0, 0, 0],
+  ).map((channel) => Math.round(channel / factionValues.length)) as [number, number, number];
+
+  const weighted = [
+    Math.round((average[0] * neutralWeight) + (neutralRed * (1 - neutralWeight))),
+    Math.round((average[1] * neutralWeight) + (neutralGreen * (1 - neutralWeight))),
+    Math.round((average[2] * neutralWeight) + (neutralBlue * (1 - neutralWeight))),
+  ] as [number, number, number];
+
+  return rgbToHex(weighted[0], weighted[1], weighted[2]);
+}
+
+function contestedPatternIdForTerritory(territoryId: string) {
+  return `territory-contested-${territoryId}`;
+}
+
+function buildContestedPattern(territory: Territory): ContestedPattern | null {
+  const visualState = territoryVisualState(territory);
+
+  if (visualState.status !== 'contested') {
+    return null;
+  }
+
+  const stripeWidth = 18 / visualState.tiedFactions.length;
+
+  return {
+    id: contestedPatternIdForTerritory(territory.id),
+    baseColor: hexToRgba(MUTED_NEUTRAL_COLOR, 0.28),
+    stripes: visualState.tiedFactions.map((faction, index) => ({
+      id: `${territory.id}-${faction}`,
+      x: Number((index * stripeWidth).toFixed(2)),
+      width: Number(stripeWidth.toFixed(2)),
+      color: hexToRgba(factionColor(faction), 0.52),
+    })),
+  };
 }
 
 function hexToRgb(hex: string): [number, number, number] {

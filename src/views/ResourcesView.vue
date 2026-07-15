@@ -3,7 +3,6 @@
     <SectionHeader
       eyebrow="Risorse"
       title="Download e riferimenti"
-      description="Materiale utile per la campagna, il manuale e i riferimenti esterni ufficiali."
     />
 
     <section class="content-grid single-column">
@@ -14,9 +13,9 @@
             <span>Scarica il PDF del manuale della campagna.</span>
           </a>
 
-          <a class="resource-item" :href="efigaUrl" target="_blank" rel="noreferrer">
+          <a class="resource-item" :href="efigaPdf" :target="config?.efigaAvailable ? undefined : '_blank'" :rel="config?.efigaAvailable ? undefined : 'noreferrer'">
             <strong>EFIGA</strong>
-            <span>Download del pack EFIGA ospitato su Old World Federation.</span>
+            <span>{{ config?.efigaAvailable ? 'Scarica il PDF EFIGA caricato nel portale.' : 'Download del pack EFIGA ospitato su Old World Federation.' }}</span>
           </a>
 
           <a class="resource-item" :href="gwFaqUrl" target="_blank" rel="noreferrer">
@@ -35,10 +34,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
 import SectionHeader from '@/components/SectionHeader.vue';
-import manualPdf from '@/assets/resources/manuale-campagna.pdf';
+import { api } from '@/services/api';
+import { useAppStore } from '@/stores/app';
 
 const efigaUrl = 'https://oldworldfederation.com/assets/infopacks/Old%20World%20Federation%20-%20EFIGA%202026.03ita.pdf';
 const gwFaqUrl = 'https://www.warhammer-community.com/en-gb/downloads/warhammer-the-old-world/';
 const federationUrl = 'https://oldworldfederation.com/';
+const appStore = useAppStore();
+const { config } = storeToRefs(appStore);
+const manualPdf = computed(() => config.value?.manualUrl ?? api.manualDownloadUrl());
+const efigaPdf = computed(() => config.value?.efigaAvailable ? config.value.efigaUrl : efigaUrl);
 </script>

@@ -161,6 +161,10 @@ export interface AppConfig {
   legalUrl: string;
   cookieUrl: string;
   contactEmail: string;
+  manualUrl: string;
+  manualAvailable: boolean;
+  efigaUrl: string;
+  efigaAvailable: boolean;
 }
 
 export interface RegisterPayload {

@@ -5,13 +5,17 @@ const apiBaseUrls = configuredApiBaseUrl
   ? [configuredApiBaseUrl]
   : ['./api/index.php', './backend/public/api/index.php'];
 
+function buildApiUrl(path: string, apiBaseUrl: string) {
+  return apiBaseUrl
+    ? `${apiBaseUrl}?route=${encodeURIComponent(path)}`
+    : path;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let lastError: Error | null = null;
 
   for (const apiBaseUrl of apiBaseUrls) {
-    const url = apiBaseUrl
-      ? `${apiBaseUrl}?route=${encodeURIComponent(path)}`
-      : path;
+    const url = buildApiUrl(path, apiBaseUrl);
 
     const response = await fetch(url, {
       credentials: 'include',
@@ -44,6 +48,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  manualDownloadUrl() {
+    return buildApiUrl('/resources/manuale-campagna', apiBaseUrls[0] ?? '');
+  },
+  efigaDownloadUrl() {
+    return buildApiUrl('/resources/efiga', apiBaseUrls[0] ?? '');
+  },
   async getConfig(): Promise<AppConfig> {
     return request<AppConfig>('/config');
   },
@@ -77,6 +87,74 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ assignments }),
     });
+  },
+  async uploadAdminCampaignManual(file: File): Promise<{ message: string; manualUrl: string; fileName: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let lastError: Error | null = null;
+
+    for (const apiBaseUrl of apiBaseUrls) {
+      const url = buildApiUrl('/admin/resources/manuale-campagna', apiBaseUrl);
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        return response.json() as Promise<{ message: string; manualUrl: string; fileName: string }>;
+      }
+
+      const errorPayload = await response.json().catch(() => null);
+      const error = new Error(
+        errorPayload?.error ?? errorPayload?.message ?? `API request failed: ${response.status}`,
+      ) as Error & { status?: number; payload?: unknown };
+      error.status = response.status;
+      error.payload = errorPayload;
+
+      if (response.status !== 404) {
+        throw error;
+      }
+
+      lastError = error;
+    }
+
+    throw lastError ?? new Error('API non raggiungibile.');
+  },
+  async uploadAdminEfiga(file: File): Promise<{ message: string; efigaUrl: string; fileName: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let lastError: Error | null = null;
+
+    for (const apiBaseUrl of apiBaseUrls) {
+      const url = buildApiUrl('/admin/resources/efiga', apiBaseUrl);
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        return response.json() as Promise<{ message: string; efigaUrl: string; fileName: string }>;
+      }
+
+      const errorPayload = await response.json().catch(() => null);
+      const error = new Error(
+        errorPayload?.error ?? errorPayload?.message ?? `API request failed: ${response.status}`,
+      ) as Error & { status?: number; payload?: unknown };
+      error.status = response.status;
+      error.payload = errorPayload;
+
+      if (response.status !== 404) {
+        throw error;
+      }
+
+      lastError = error;
+    }
+
+    throw lastError ?? new Error('API non raggiungibile.');
   },
   async getRecentMatches(): Promise<MatchSummary[]> {
     return request<MatchSummary[]>('/matches/recent');

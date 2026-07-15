@@ -46,7 +46,7 @@ defineProps<{
 
 const appStore = useAppStore();
 const { user } = storeToRefs(appStore);
-const { factionBadgeStyle, factionLabel } = useTheme();
+const { factionLabel, factionSurfaceStyle } = useTheme();
 
 const leftSide = (match: MatchSummary) =>
   user.value?.nickname === match.playerB
@@ -58,7 +58,7 @@ const rightSide = (match: MatchSummary) =>
     ? { player: match.playerA, army: match.armyA, faction: match.factionA, score: match.scoreA, victoryPoints: match.victoryPointsA }
     : { player: match.playerB, army: match.armyB, faction: match.factionB, score: match.scoreB, victoryPoints: match.victoryPointsB };
 
-const playerStyle = (faction: MatchSummary['factionA']) => factionBadgeStyle(faction);
+const playerStyle = (faction: MatchSummary['factionA']) => factionSurfaceStyle(faction);
 
 const battleOutcomeLabel = (match: MatchSummary) => {
   return getBattleOutcomeLabel(leftSide(match).score, rightSide(match).score);

@@ -68,7 +68,51 @@ if ($method === 'GET' && $path === '/config') {
         'legalUrl' => '#legal',
         'cookieUrl' => '#cookie',
         'contactEmail' => $config['app']['contact_email'],
+        'manualUrl' => buildRouteUrl('/resources/manuale-campagna'),
+        'manualAvailable' => is_file(campaignManualPath()),
+        'efigaUrl' => buildRouteUrl('/resources/efiga'),
+        'efigaAvailable' => is_file(efigaDocumentPath()),
     ]);
+}
+
+if ($method === 'GET' && $path === '/resources/manuale-campagna') {
+    $manualPath = campaignManualPath();
+
+    if (! is_file($manualPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Manuale campagna non disponibile.';
+        exit;
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="manuale-campagna.pdf"');
+    header('Content-Length: ' . (string) filesize($manualPath));
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    readfile($manualPath);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/resources/efiga') {
+    $efigaPath = efigaDocumentPath();
+
+    if (! is_file($efigaPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Documento EFIGA non disponibile.';
+        exit;
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="efiga.pdf"');
+    header('Content-Length: ' . (string) filesize($efigaPath));
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    readfile($efigaPath);
+    exit;
 }
 
 if ($method === 'GET' && $path === '/me') {
@@ -1017,6 +1061,104 @@ if ($method === 'PUT' && $path === '/admin/territory-map') {
     ]);
 }
 
+if ($method === 'POST' && $path === '/admin/resources/manuale-campagna') {
+    requireAdmin($pdo);
+
+    if (! isset($_FILES['file']) || ! is_array($_FILES['file'])) {
+        jsonResponse(['error' => 'Seleziona un file PDF da caricare.'], 422);
+    }
+
+    $uploadedFile = $_FILES['file'];
+    $uploadError = (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        jsonResponse(['error' => uploadErrorMessage($uploadError)], 422);
+    }
+
+    $originalName = trim((string) ($uploadedFile['name'] ?? 'manuale-campagna.pdf'));
+    $temporaryPath = (string) ($uploadedFile['tmp_name'] ?? '');
+
+    if ($temporaryPath === '' || ! is_uploaded_file($temporaryPath)) {
+        jsonResponse(['error' => 'Upload non valido.'], 422);
+    }
+
+    if (mb_strtolower(pathinfo($originalName, PATHINFO_EXTENSION)) !== 'pdf') {
+        jsonResponse(['error' => 'Il manuale deve essere un file PDF.'], 422);
+    }
+
+    if (! isPdfFile($temporaryPath)) {
+        jsonResponse(['error' => 'Il file caricato non sembra un PDF valido.'], 422);
+    }
+
+    $manualPath = campaignManualPath();
+    $manualDirectory = dirname($manualPath);
+
+    if (! is_dir($manualDirectory) && ! mkdir($manualDirectory, 0775, true) && ! is_dir($manualDirectory)) {
+        jsonResponse(['error' => 'Impossibile creare la cartella documenti sul server.'], 500);
+    }
+
+    if (! move_uploaded_file($temporaryPath, $manualPath)) {
+        jsonResponse(['error' => 'Impossibile salvare il nuovo manuale sul server.'], 500);
+    }
+
+    @chmod($manualPath, 0664);
+
+    jsonResponse([
+        'message' => 'Nuova versione del manuale caricata correttamente.',
+        'manualUrl' => buildRouteUrl('/resources/manuale-campagna'),
+        'fileName' => 'manuale-campagna.pdf',
+    ]);
+}
+
+if ($method === 'POST' && $path === '/admin/resources/efiga') {
+    requireAdmin($pdo);
+
+    if (! isset($_FILES['file']) || ! is_array($_FILES['file'])) {
+        jsonResponse(['error' => 'Seleziona un file PDF da caricare.'], 422);
+    }
+
+    $uploadedFile = $_FILES['file'];
+    $uploadError = (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        jsonResponse(['error' => uploadErrorMessage($uploadError)], 422);
+    }
+
+    $originalName = trim((string) ($uploadedFile['name'] ?? 'efiga.pdf'));
+    $temporaryPath = (string) ($uploadedFile['tmp_name'] ?? '');
+
+    if ($temporaryPath === '' || ! is_uploaded_file($temporaryPath)) {
+        jsonResponse(['error' => 'Upload non valido.'], 422);
+    }
+
+    if (mb_strtolower(pathinfo($originalName, PATHINFO_EXTENSION)) !== 'pdf') {
+        jsonResponse(['error' => 'Il documento EFIGA deve essere un file PDF.'], 422);
+    }
+
+    if (! isPdfFile($temporaryPath)) {
+        jsonResponse(['error' => 'Il file caricato non sembra un PDF valido.'], 422);
+    }
+
+    $efigaPath = efigaDocumentPath();
+    $efigaDirectory = dirname($efigaPath);
+
+    if (! is_dir($efigaDirectory) && ! mkdir($efigaDirectory, 0775, true) && ! is_dir($efigaDirectory)) {
+        jsonResponse(['error' => 'Impossibile creare la cartella documenti sul server.'], 500);
+    }
+
+    if (! move_uploaded_file($temporaryPath, $efigaPath)) {
+        jsonResponse(['error' => 'Impossibile salvare il nuovo documento EFIGA sul server.'], 500);
+    }
+
+    @chmod($efigaPath, 0664);
+
+    jsonResponse([
+        'message' => 'Nuova versione del documento EFIGA caricata correttamente.',
+        'efigaUrl' => buildRouteUrl('/resources/efiga'),
+        'fileName' => 'efiga.pdf',
+    ]);
+}
+
 if ($method === 'GET' && $path === '/matches/recent') {
     $stmt = $pdo->query("
         SELECT
@@ -1838,6 +1980,64 @@ function jsonResponse(array $payload, int $statusCode = 200): void
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
+}
+
+function buildRouteUrl(string $route): string
+{
+    $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '/api/index.php');
+    return sprintf('%s?route=%s', $scriptName, rawurlencode($route));
+}
+
+function campaignManualPath(): string
+{
+    return dirname(__DIR__) . '/resources/manuale-campagna.pdf';
+}
+
+function efigaDocumentPath(): string
+{
+    return dirname(__DIR__) . '/resources/efiga.pdf';
+}
+
+function uploadErrorMessage(int $errorCode): string
+{
+    return match ($errorCode) {
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Il file supera la dimensione massima consentita.',
+        UPLOAD_ERR_PARTIAL => 'Upload interrotto prima del completamento.',
+        UPLOAD_ERR_NO_FILE => 'Nessun file selezionato.',
+        UPLOAD_ERR_NO_TMP_DIR => 'Cartella temporanea server mancante.',
+        UPLOAD_ERR_CANT_WRITE => 'Il server non riesce a scrivere il file sul disco.',
+        UPLOAD_ERR_EXTENSION => 'Upload bloccato da un estensione PHP del server.',
+        default => 'Upload non riuscito.',
+    };
+}
+
+function isPdfFile(string $filePath): bool
+{
+    $mimeType = null;
+
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+        if ($finfo !== false) {
+            $mimeType = finfo_file($finfo, $filePath) ?: null;
+            finfo_close($finfo);
+        }
+    }
+
+    if ($mimeType !== null && in_array($mimeType, ['application/pdf', 'application/x-pdf'], true)) {
+        return true;
+    }
+
+    $handle = @fopen($filePath, 'rb');
+
+    if ($handle === false) {
+        return false;
+    }
+
+    $signature = fread($handle, 4);
+    fclose($handle);
+
+    return $signature === '%PDF';
 }
 
 function uuidV4(): string

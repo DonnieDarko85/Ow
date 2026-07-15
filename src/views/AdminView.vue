@@ -202,7 +202,7 @@
       </div>
     </section>
 
-    <section v-else class="panel-card admin-panel">
+    <section v-else-if="activeTab === 'map'" class="panel-card admin-panel">
       <div class="admin-panel-head">
         <div>
           <p class="eyebrow">Mappa</p>
@@ -213,6 +213,86 @@
         Editor admin per assegnare gli esagoni ai territori, con caricamento e salvataggio esplicito della mappa condivisa lato server.
       </p>
       <AdminHexMapEditor :territories="territories" />
+    </section>
+
+    <section v-else class="panel-card admin-panel">
+      <div class="admin-panel-head">
+        <div>
+          <p class="eyebrow">Documenti</p>
+          <h3>Manuale campagna</h3>
+        </div>
+      </div>
+
+      <div class="admin-documents-card">
+        <p class="muted-copy">
+          Carica nuove versioni PDF dei documenti. I file sostituiscono quelli disponibili nella sezione Risorse senza richiedere modifiche al codice.
+        </p>
+
+        <div class="admin-document-block">
+          <a class="resource-item admin-document-link" :href="manualUrl" download>
+            <strong>Manuale campagna</strong>
+            <span>Nome file pubblico: manuale-campagna.pdf</span>
+          </a>
+
+          <label class="admin-upload-field">
+            <span>Nuovo PDF</span>
+            <input type="file" accept="application/pdf,.pdf" @change="handleManualFileChange" />
+          </label>
+
+          <p v-if="selectedManualName" class="muted-copy">
+            File selezionato: {{ selectedManualName }}
+          </p>
+
+          <div class="admin-card-actions">
+            <button
+              class="primary-button admin-inline-button"
+              type="button"
+              :disabled="isUploadingManual || !selectedManualFile"
+              @click="uploadCampaignManual"
+            >
+              {{ isUploadingManual ? 'Caricamento in corso...' : 'Carica nuova versione' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-document-block">
+          <a
+            v-if="config?.efigaAvailable"
+            class="resource-item admin-document-link"
+            :href="efigaUrl"
+            download
+          >
+            <strong>EFIGA</strong>
+            <span>Nome file pubblico: efiga.pdf</span>
+          </a>
+          <div v-else class="resource-item admin-document-link">
+            <strong>EFIGA</strong>
+            <span>Nessun PDF locale caricato ancora. Dopo il primo upload comparira nei download Risorse.</span>
+          </div>
+
+          <label class="admin-upload-field">
+            <span>Nuovo PDF EFIGA</span>
+            <input type="file" accept="application/pdf,.pdf" @change="handleEfigaFileChange" />
+          </label>
+
+          <p v-if="selectedEfigaName" class="muted-copy">
+            File selezionato: {{ selectedEfigaName }}
+          </p>
+
+          <div class="admin-card-actions">
+            <button
+              class="primary-button admin-inline-button"
+              type="button"
+              :disabled="isUploadingEfiga || !selectedEfigaFile"
+              @click="uploadEfiga"
+            >
+              {{ isUploadingEfiga ? 'Caricamento in corso...' : 'Carica nuova versione EFIGA' }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="adminMessage" class="success-message">{{ adminMessage }}</p>
+      </div>
     </section>
   </div>
 </template>
@@ -228,12 +308,13 @@ import type { AdminMatchRecord, AdminUserRecord, MatchStatus } from '@/types';
 import { calculateMatchPoints } from '@/utils/matchScoring';
 
 const appStore = useAppStore();
-const { armies, factions, territories } = storeToRefs(appStore);
+const { armies, config, factions, territories } = storeToRefs(appStore);
 
 const tabs = [
   { id: 'users', label: 'Utenti' },
   { id: 'matches', label: 'Partite e risultati' },
   { id: 'map', label: 'Mappa' },
+  { id: 'documents', label: 'Documenti' },
 ] as const;
 
 const activeTab = ref<(typeof tabs)[number]['id']>('users');
@@ -243,6 +324,12 @@ const adminMessage = ref('');
 const userSearch = ref('');
 const matchSearch = ref('');
 const matchStatusFilter = ref<'ALL' | MatchStatus>('ALL');
+const selectedManualFile = ref<File | null>(null);
+const selectedManualName = ref('');
+const isUploadingManual = ref(false);
+const selectedEfigaFile = ref<File | null>(null);
+const selectedEfigaName = ref('');
+const isUploadingEfiga = ref(false);
 
 const matchStatusOptions: Array<{ value: 'ALL' | MatchStatus; label: string }> = [
   { value: 'ALL', label: 'Tutti gli stati' },
@@ -286,6 +373,8 @@ const filteredAdminMatches = computed(() => {
 const matchStatusLabel = (status: MatchStatus) => matchStatusLabels[status];
 
 const matchStatusClass = (status: MatchStatus) => `is-${status.toLowerCase()}`;
+const manualUrl = computed(() => config.value?.manualUrl ?? api.manualDownloadUrl());
+const efigaUrl = computed(() => config.value?.efigaUrl ?? api.efigaDownloadUrl());
 
 onMounted(async () => {
   if (!appStore.hasBootstrapped) {
@@ -339,6 +428,69 @@ async function saveMatch(entry: AdminMatchRecord) {
       matchPointsA: recalculated.playerA,
       matchPointsB: recalculated.playerB,
     };
+  }
+}
+
+function handleManualFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0] ?? null;
+  selectedManualFile.value = file;
+  selectedManualName.value = file?.name ?? '';
+}
+
+function handleEfigaFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0] ?? null;
+  selectedEfigaFile.value = file;
+  selectedEfigaName.value = file?.name ?? '';
+}
+
+async function uploadCampaignManual() {
+  if (!selectedManualFile.value) {
+    return;
+  }
+
+  isUploadingManual.value = true;
+
+  try {
+    const result = await api.uploadAdminCampaignManual(selectedManualFile.value);
+    adminMessage.value = result.message;
+    selectedManualFile.value = null;
+    selectedManualName.value = '';
+
+    if (config.value) {
+      config.value = {
+        ...config.value,
+        manualUrl: result.manualUrl,
+      };
+    }
+  } finally {
+    isUploadingManual.value = false;
+  }
+}
+
+async function uploadEfiga() {
+  if (!selectedEfigaFile.value) {
+    return;
+  }
+
+  isUploadingEfiga.value = true;
+
+  try {
+    const result = await api.uploadAdminEfiga(selectedEfigaFile.value);
+    adminMessage.value = result.message;
+    selectedEfigaFile.value = null;
+    selectedEfigaName.value = '';
+
+    if (config.value) {
+      config.value = {
+        ...config.value,
+        efigaUrl: result.efigaUrl,
+        efigaAvailable: true,
+      };
+    }
+  } finally {
+    isUploadingEfiga.value = false;
   }
 }
 </script>

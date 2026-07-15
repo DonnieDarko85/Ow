@@ -6,7 +6,7 @@
     />
 
     <section class="panel-card">
-      <MatchesTable :matches="recentMatches" />
+      <MatchesTable :matches="myRecentMatches" />
     </section>
 
     <section v-if="pendingMatchesForMe.length > 0" class="panel-card pending-results-panel">
@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import MatchesTable from '@/components/MatchesTable.vue';
 import SectionHeader from '@/components/SectionHeader.vue';
@@ -115,6 +115,17 @@ const { recentMatches, user } = storeToRefs(appStore);
 const pendingMatchesForMe = ref<PendingMatchSuggestion[]>([]);
 const pendingMatchesByMe = ref<PendingOwnMatch[]>([]);
 const { factionLabel } = useTheme();
+const myRecentMatches = computed(() => {
+  const nickname = user.value?.nickname?.trim().toLowerCase();
+
+  if (!nickname) {
+    return [];
+  }
+
+  return recentMatches.value.filter((match) =>
+    match.playerA.trim().toLowerCase() === nickname || match.playerB.trim().toLowerCase() === nickname,
+  );
+});
 
 onMounted(async () => {
   const [pendingForMeResult, pendingByMeResult] = await Promise.allSettled([

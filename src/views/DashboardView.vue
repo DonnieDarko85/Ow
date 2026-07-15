@@ -14,11 +14,11 @@
         <p class="eyebrow">Fazione in vantaggio</p>
         <div class="faction-stat-body">
           <div class="faction-pie-wrap">
-            <div
+            <FactionPieChart
               class="faction-pie"
-              :style="{ background: factionPieBackground }"
-              aria-label="Distribuzione del controllo tra le tre fazioni"
-            ></div>
+              :segments="factionDistribution"
+              label="Distribuzione del controllo tra le tre fazioni"
+            />
             <p class="faction-stat-label" :style="leadingFactionColor ? { color: leadingFactionColor } : undefined">
               {{ leadingFaction ?? 'Equilibrio tra le fazioni' }}
             </p>
@@ -53,6 +53,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
+import FactionPieChart from '@/components/FactionPieChart.vue';
 import MatchesTable from '@/components/MatchesTable.vue';
 import SectionHeader from '@/components/SectionHeader.vue';
 import StatCard from '@/components/StatCard.vue';
@@ -133,15 +134,4 @@ const leadingFactionColor = computed(() => {
   return factionColor(first.faction);
 });
 
-const factionPieBackground = computed(() => {
-  let currentStop = 0;
-  const segments = factionDistribution.value.map(({ faction, percentage }) => {
-    const nextStop = currentStop + percentage;
-    const segment = `${factionColor(faction)} ${currentStop}% ${nextStop}%`;
-    currentStop = nextStop;
-    return segment;
-  });
-
-  return `conic-gradient(${segments.join(', ')})`;
-});
 </script>

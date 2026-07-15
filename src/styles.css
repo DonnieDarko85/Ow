@@ -596,11 +596,21 @@ button {
 
 .faction-pie {
   flex: 0 0 auto;
-  width: 76px;
-  height: 76px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 12px rgba(9, 9, 9, 0.9);
+  overflow: hidden;
+}
+
+.faction-pie-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.faction-pie-base {
+  fill: rgba(255, 255, 255, 0.04);
 }
 
 .faction-stat-label {
@@ -724,6 +734,110 @@ button {
   color: var(--muted);
 }
 
+.map-territory-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.map-territory-summary,
+.map-territory-chart-card,
+.map-metric-card,
+.map-territory-empty-state,
+.map-territory-legend-item {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.map-territory-summary,
+.map-territory-chart-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+}
+
+.map-territory-summary h3 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+  color: #dce8ff;
+}
+
+.map-territory-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.map-metric-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem 0.95rem;
+}
+
+.map-metric-card span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.map-metric-card strong {
+  color: var(--text);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+}
+
+.map-territory-chart-content {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.map-territory-pie-wrap {
+  display: grid;
+  place-items: center;
+}
+
+.map-territory-pie {
+  width: 108px;
+  height: 108px;
+}
+
+.map-territory-legend {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.map-territory-legend-item {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem 0.9rem;
+}
+
+.map-territory-legend-item span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.map-territory-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  min-height: 180px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.map-territory-empty-state strong {
+  font-size: 2rem;
+  color: #dce8ff;
+}
+
+.map-territory-empty-state span {
+  color: var(--muted);
+  max-width: 24ch;
+}
+
 .resources-card {
   display: grid;
   gap: 1rem;
@@ -773,13 +887,13 @@ button {
 }
 
 .faction-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
+  display: inline;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -851,7 +965,6 @@ button {
   padding: 0.85rem 1rem;
   border: 1px solid currentColor;
   border-radius: 14px;
-  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .match-player-card.is-opponent {
@@ -871,6 +984,7 @@ button {
 
 .match-player-head strong {
   font-size: 1rem;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
 }
 
 .match-player-vp {
@@ -899,6 +1013,7 @@ button {
   font-size: 0.92rem;
   line-height: 1.4;
   opacity: 0.92;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .match-separator {
@@ -1151,6 +1266,34 @@ button {
 .admin-card-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+.admin-documents-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-document-block {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-document-link {
+  max-width: 520px;
+}
+
+.admin-upload-field {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 520px;
+}
+
+.admin-upload-field input[type="file"] {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .admin-inline-button {
@@ -1681,6 +1824,17 @@ textarea {
   .faction-pie {
     width: 68px;
     height: 68px;
+  }
+
+  .map-territory-details,
+  .map-territory-chart-content,
+  .map-territory-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .map-territory-pie {
+    width: 90px;
+    height: 90px;
   }
 
   .mobile-nav {
