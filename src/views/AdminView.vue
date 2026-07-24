@@ -291,6 +291,43 @@
           </div>
         </div>
 
+        <div class="admin-document-block">
+          <a
+            v-if="config?.campaignMapAvailable"
+            class="resource-item admin-document-link"
+            :href="campaignMapUrl"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <strong>Mappa campagna</strong>
+            <span>Risorsa pubblica servita dal portale per dashboard e pannello admin.</span>
+          </a>
+          <div v-else class="resource-item admin-document-link">
+            <strong>Mappa campagna</strong>
+            <span>Nessuna mappa custom caricata ancora. Il portale continua a usare l'asset locale di fallback.</span>
+          </div>
+
+          <label class="admin-upload-field">
+            <span>Nuova immagine mappa</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" @change="handleCampaignMapFileChange" />
+          </label>
+
+          <p v-if="selectedCampaignMapName" class="muted-copy">
+            File selezionato: {{ selectedCampaignMapName }}
+          </p>
+
+          <div class="admin-card-actions">
+            <button
+              class="primary-button admin-inline-button"
+              type="button"
+              :disabled="isUploadingCampaignMap || !selectedCampaignMapFile"
+              @click="uploadCampaignMap"
+            >
+              {{ isUploadingCampaignMap ? 'Caricamento in corso...' : 'Carica nuova mappa campagna' }}
+            </button>
+          </div>
+        </div>
+
         <p v-if="adminMessage" class="success-message">{{ adminMessage }}</p>
       </div>
     </section>
@@ -330,6 +367,9 @@ const isUploadingManual = ref(false);
 const selectedEfigaFile = ref<File | null>(null);
 const selectedEfigaName = ref('');
 const isUploadingEfiga = ref(false);
+const selectedCampaignMapFile = ref<File | null>(null);
+const selectedCampaignMapName = ref('');
+const isUploadingCampaignMap = ref(false);
 
 const matchStatusOptions: Array<{ value: 'ALL' | MatchStatus; label: string }> = [
   { value: 'ALL', label: 'Tutti gli stati' },
@@ -375,6 +415,7 @@ const matchStatusLabel = (status: MatchStatus) => matchStatusLabels[status];
 const matchStatusClass = (status: MatchStatus) => `is-${status.toLowerCase()}`;
 const manualUrl = computed(() => config.value?.manualUrl ?? api.manualDownloadUrl());
 const efigaUrl = computed(() => config.value?.efigaUrl ?? api.efigaDownloadUrl());
+const campaignMapUrl = computed(() => config.value?.campaignMapUrl ?? api.campaignMapDownloadUrl());
 
 onMounted(async () => {
   if (!appStore.hasBootstrapped) {
@@ -445,6 +486,13 @@ function handleEfigaFileChange(event: Event) {
   selectedEfigaName.value = file?.name ?? '';
 }
 
+function handleCampaignMapFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0] ?? null;
+  selectedCampaignMapFile.value = file;
+  selectedCampaignMapName.value = file?.name ?? '';
+}
+
 async function uploadCampaignManual() {
   if (!selectedManualFile.value) {
     return;
@@ -491,6 +539,31 @@ async function uploadEfiga() {
     }
   } finally {
     isUploadingEfiga.value = false;
+  }
+}
+
+async function uploadCampaignMap() {
+  if (!selectedCampaignMapFile.value) {
+    return;
+  }
+
+  isUploadingCampaignMap.value = true;
+
+  try {
+    const result = await api.uploadAdminCampaignMap(selectedCampaignMapFile.value);
+    adminMessage.value = result.message;
+    selectedCampaignMapFile.value = null;
+    selectedCampaignMapName.value = '';
+
+    if (config.value) {
+      config.value = {
+        ...config.value,
+        campaignMapUrl: result.campaignMapUrl,
+        campaignMapAvailable: true,
+      };
+    }
+  } finally {
+    isUploadingCampaignMap.value = false;
   }
 }
 </script>

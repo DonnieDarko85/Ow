@@ -133,7 +133,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import campaignMap from '@/assets/maps/campaign-map.jpeg';
+import fallbackCampaignMap from '@/assets/maps/campaign-map.jpeg';
 import FactionBadge from '@/components/FactionBadge.vue';
 import FactionPieChart from '@/components/FactionPieChart.vue';
 import { api } from '@/services/api';
@@ -144,7 +144,7 @@ import type { HexCell } from '@/utils/hexMap';
 import { HEX_MAP_HEIGHT, HEX_MAP_WIDTH, buildHexGrid, loadStoredHexAssignments } from '@/utils/hexMap';
 
 const appStore = useAppStore();
-const { territories } = storeToRefs(appStore);
+const { config, territories } = storeToRefs(appStore);
 const { factionColor, factionLabel } = useTheme();
 
 const assignments = ref<Record<string, string>>({});
@@ -154,6 +154,9 @@ const hexes = computed(() => buildHexGrid());
 const assignedHexes = computed(() => hexes.value.filter((hex) => Boolean(assignments.value[hex.id])));
 const boundarySegments = computed(() => buildBoundarySegments(hexes.value, assignments.value));
 const MUTED_NEUTRAL_COLOR = '#ece7df';
+const campaignMap = computed(() =>
+  config.value?.campaignMapAvailable ? config.value.campaignMapUrl : fallbackCampaignMap,
+);
 
 const activeTerritory = computed(() =>
   territories.value.find((territory) => territory.id === activeTerritoryId.value) ?? null,

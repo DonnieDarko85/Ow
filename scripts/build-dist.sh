@@ -43,6 +43,11 @@ cp backend/public/resources/manuale-campagna.pdf "${DIST_DIR}/resources/manuale-
 if [ -f "backend/public/resources/efiga.pdf" ]; then
   cp backend/public/resources/efiga.pdf "${DIST_DIR}/resources/efiga.pdf"
 fi
+for ext in jpg jpeg png webp; do
+  if [ -f "backend/public/resources/campaign-map.${ext}" ]; then
+    cp "backend/public/resources/campaign-map.${ext}" "${DIST_DIR}/resources/campaign-map.${ext}"
+  fi
+done
 cp backend/src/Database.php "${DIST_DIR}/backend/src/Database.php"
 cp backend/config/config.php "${DIST_DIR}/backend/config/config.php"
 cp .htaccess "${DIST_DIR}/.htaccess"
@@ -52,6 +57,11 @@ chmod 664 "${DIST_DIR}/resources/manuale-campagna.pdf"
 if [ -f "${DIST_DIR}/resources/efiga.pdf" ]; then
   chmod 664 "${DIST_DIR}/resources/efiga.pdf"
 fi
+for ext in jpg jpeg png webp; do
+  if [ -f "${DIST_DIR}/resources/campaign-map.${ext}" ]; then
+    chmod 664 "${DIST_DIR}/resources/campaign-map.${ext}"
+  fi
+done
 chmod 644 "${DIST_DIR}/backend/src/Database.php"
 chmod 600 "${DIST_DIR}/backend/config/config.php"
 chmod 644 "${DIST_DIR}/.htaccess"
@@ -68,5 +78,6 @@ echo "- assets/"
 echo "- api/index.php"
 echo "- resources/manuale-campagna.pdf"
 echo "- resources/efiga.pdf (se presente)"
+echo "- resources/campaign-map.<estensione> (se presente)"
 echo "- backend/src/Database.php"
 echo "- backend/config/config.php"

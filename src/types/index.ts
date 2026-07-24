@@ -54,6 +54,7 @@ export interface Territory {
   description: string;
   lore: string;
   mapPathId: string;
+  isMatchSubmissionEnabled: boolean;
   stats: TerritoryStats;
 }
 
@@ -165,6 +166,8 @@ export interface AppConfig {
   manualAvailable: boolean;
   efigaUrl: string;
   efigaAvailable: boolean;
+  campaignMapUrl: string;
+  campaignMapAvailable: boolean;
 }
 
 export interface RegisterPayload {

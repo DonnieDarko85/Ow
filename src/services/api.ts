@@ -54,6 +54,9 @@ export const api = {
   efigaDownloadUrl() {
     return buildApiUrl('/resources/efiga', apiBaseUrls[0] ?? '');
   },
+  campaignMapDownloadUrl() {
+    return buildApiUrl('/resources/campaign-map', apiBaseUrls[0] ?? '');
+  },
   async getConfig(): Promise<AppConfig> {
     return request<AppConfig>('/config');
   },
@@ -76,6 +79,15 @@ export const api = {
     return request<{ message: string; territory: Territory }>('/admin/territories', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+  async updateAdminTerritoryMatchAvailability(
+    territoryId: string,
+    isMatchSubmissionEnabled: boolean,
+  ): Promise<{ message: string }> {
+    return request<{ message: string }>(`/admin/territories/${territoryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isMatchSubmissionEnabled }),
     });
   },
   async getTerritoryMap(): Promise<Record<string, string>> {
@@ -138,6 +150,40 @@ export const api = {
 
       if (response.ok) {
         return response.json() as Promise<{ message: string; efigaUrl: string; fileName: string }>;
+      }
+
+      const errorPayload = await response.json().catch(() => null);
+      const error = new Error(
+        errorPayload?.error ?? errorPayload?.message ?? `API request failed: ${response.status}`,
+      ) as Error & { status?: number; payload?: unknown };
+      error.status = response.status;
+      error.payload = errorPayload;
+
+      if (response.status !== 404) {
+        throw error;
+      }
+
+      lastError = error;
+    }
+
+    throw lastError ?? new Error('API non raggiungibile.');
+  },
+  async uploadAdminCampaignMap(file: File): Promise<{ message: string; campaignMapUrl: string; fileName: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let lastError: Error | null = null;
+
+    for (const apiBaseUrl of apiBaseUrls) {
+      const url = buildApiUrl('/admin/resources/campaign-map', apiBaseUrl);
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (response.ok) {
+        return response.json() as Promise<{ message: string; campaignMapUrl: string; fileName: string }>;
       }
 
       const errorPayload = await response.json().catch(() => null);

@@ -72,6 +72,8 @@ if ($method === 'GET' && $path === '/config') {
         'manualAvailable' => is_file(campaignManualPath()),
         'efigaUrl' => buildRouteUrl('/resources/efiga'),
         'efigaAvailable' => is_file(efigaDocumentPath()),
+        'campaignMapUrl' => buildRouteUrl('/resources/campaign-map'),
+        'campaignMapAvailable' => campaignMapImagePath() !== null,
     ]);
 }
 
@@ -112,6 +114,26 @@ if ($method === 'GET' && $path === '/resources/efiga') {
     header('Pragma: no-cache');
     header('Expires: 0');
     readfile($efigaPath);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/resources/campaign-map') {
+    $campaignMapPath = campaignMapImagePath();
+
+    if ($campaignMapPath === null || ! is_file($campaignMapPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Mappa campagna non disponibile.';
+        exit;
+    }
+
+    $mimeType = mime_content_type($campaignMapPath) ?: 'application/octet-stream';
+    header('Content-Type: ' . $mimeType);
+    header('Content-Length: ' . (string) filesize($campaignMapPath));
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    readfile($campaignMapPath);
     exit;
 }
 
@@ -801,24 +823,74 @@ if ($method === 'POST' && $path === '/admin/territories') {
             'description' => $description,
             'lore' => $lore,
             'mapPathId' => $mapPathId,
+            'isMatchSubmissionEnabled' => true,
             'stats' => buildTerritoryStatsPayload(0, 0, [], [], $factionCodes),
         ],
     ], 201);
 }
 
+if ($method === 'PATCH' && preg_match('#^/admin/territories/([A-Za-z0-9-]+)$#', $path, $matches) === 1) {
+    requireAdmin($pdo);
+
+    if (! territoryMatchSubmissionColumnAvailable($pdo)) {
+        jsonResponse(['error' => 'Colonna territori per il toggle match non disponibile. Esegui la migrazione SQL dedicata.'], 500);
+    }
+
+    $territoryId = $matches[1];
+    $isMatchSubmissionEnabled = (int) (($payload['isMatchSubmissionEnabled'] ?? true) ? 1 : 0);
+
+    $updateStmt = $pdo->prepare("
+        UPDATE territories
+        SET is_match_submission_enabled = :is_match_submission_enabled,
+            updated_at = NOW()
+        WHERE id = :id
+          AND is_active = 1
+    ");
+    $updateStmt->execute([
+        'id' => $territoryId,
+        'is_match_submission_enabled' => $isMatchSubmissionEnabled,
+    ]);
+
+    if ($updateStmt->rowCount() < 1) {
+        $existsStmt = $pdo->prepare('
+            SELECT id
+            FROM territories
+            WHERE id = :id
+            LIMIT 1
+        ');
+        $existsStmt->execute(['id' => $territoryId]);
+
+        if (! $existsStmt->fetch(PDO::FETCH_ASSOC)) {
+            jsonResponse(['error' => 'Territorio non trovato.'], 404);
+        }
+    }
+
+    jsonResponse([
+        'message' => $isMatchSubmissionEnabled === 1
+            ? 'Territorio abilitato ai nuovi match.'
+            : 'Territorio disabilitato ai nuovi match.',
+    ]);
+}
+
 if ($method === 'GET' && $path === '/territories') {
-    $stmt = $pdo->query('
+    $hasMatchSubmissionToggle = territoryMatchSubmissionColumnAvailable($pdo);
+    $matchSubmissionSelect = $hasMatchSubmissionToggle
+        ? 't.is_match_submission_enabled AS isMatchSubmissionEnabled'
+        : '1 AS isMatchSubmissionEnabled';
+
+    $stmt = $pdo->query("
         SELECT
             t.id,
             t.name,
             t.slug,
             t.description,
             t.lore,
-            t.map_path_id AS mapPathId
+            t.map_path_id AS mapPathId,
+            {$matchSubmissionSelect}
         FROM territories t
         WHERE t.is_active = 1
         ORDER BY t.sort_order, t.name
-    ');
+    ");
 
     $factionCodes = getActiveFactionCodes($pdo);
     $territoryStats = [];
@@ -917,6 +989,7 @@ if ($method === 'GET' && $path === '/territories') {
             'factionWins' => [],
             'armyWins' => [],
         ];
+        $row['isMatchSubmissionEnabled'] = (bool) ($row['isMatchSubmissionEnabled'] ?? true);
 
         $row['stats'] = buildTerritoryStatsPayload(
             $stats['confirmedBattles'],
@@ -1156,6 +1229,60 @@ if ($method === 'POST' && $path === '/admin/resources/efiga') {
         'message' => 'Nuova versione del documento EFIGA caricata correttamente.',
         'efigaUrl' => buildRouteUrl('/resources/efiga'),
         'fileName' => 'efiga.pdf',
+    ]);
+}
+
+if ($method === 'POST' && $path === '/admin/resources/campaign-map') {
+    requireAdmin($pdo);
+
+    if (! isset($_FILES['file']) || ! is_array($_FILES['file'])) {
+        jsonResponse(['error' => 'Seleziona un file immagine da caricare.'], 422);
+    }
+
+    $uploadedFile = $_FILES['file'];
+    $uploadError = (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        jsonResponse(['error' => uploadErrorMessage($uploadError)], 422);
+    }
+
+    $originalName = trim((string) ($uploadedFile['name'] ?? 'campaign-map.jpg'));
+    $temporaryPath = (string) ($uploadedFile['tmp_name'] ?? '');
+
+    if ($temporaryPath === '' || ! is_uploaded_file($temporaryPath)) {
+        jsonResponse(['error' => 'Upload non valido.'], 422);
+    }
+
+    $extension = normalizeCampaignMapExtension((string) pathinfo($originalName, PATHINFO_EXTENSION));
+
+    if ($extension === null) {
+        jsonResponse(['error' => 'La mappa deve essere in formato JPG, PNG o WEBP.'], 422);
+    }
+
+    if (! isSupportedImageFile($temporaryPath, $extension)) {
+        jsonResponse(['error' => 'Il file caricato non sembra un immagine valida supportata.'], 422);
+    }
+
+    $campaignMapDirectory = campaignMapDirectoryPath();
+
+    if (! is_dir($campaignMapDirectory) && ! mkdir($campaignMapDirectory, 0775, true) && ! is_dir($campaignMapDirectory)) {
+        jsonResponse(['error' => 'Impossibile creare la cartella risorse sul server.'], 500);
+    }
+
+    deleteCampaignMapImages();
+
+    $campaignMapPath = campaignMapUploadPath($extension);
+
+    if (! move_uploaded_file($temporaryPath, $campaignMapPath)) {
+        jsonResponse(['error' => 'Impossibile salvare la nuova mappa sul server.'], 500);
+    }
+
+    @chmod($campaignMapPath, 0664);
+
+    jsonResponse([
+        'message' => 'Nuova mappa campagna caricata correttamente.',
+        'campaignMapUrl' => buildRouteUrl('/resources/campaign-map'),
+        'fileName' => basename($campaignMapPath),
     ]);
 }
 
@@ -1693,6 +1820,29 @@ if ($method === 'POST' && $path === '/matches/results') {
     }
 
     $ownFaction = (string) $army['factionCode'];
+    $territoryValidationStmt = $pdo->prepare(
+        territoryMatchSubmissionColumnAvailable($pdo)
+            ? '
+                SELECT id, is_match_submission_enabled AS isMatchSubmissionEnabled
+                FROM territories
+                WHERE id = :id
+                  AND is_active = 1
+                LIMIT 1
+            '
+            : '
+                SELECT id, 1 AS isMatchSubmissionEnabled
+                FROM territories
+                WHERE id = :id
+                  AND is_active = 1
+                LIMIT 1
+            '
+    );
+    $territoryValidationStmt->execute(['id' => $territoryId]);
+    $territory = $territoryValidationStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $territory) {
+        jsonResponse(['error' => 'Territorio non valido.'], 404);
+    }
 
     $pdo->beginTransaction();
 
@@ -1729,6 +1879,13 @@ if ($method === 'POST' && $path === '/matches/results') {
             'territory_id' => $territoryId,
         ]);
         $pendingCandidates = $candidateStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if ((int) ($territory['isMatchSubmissionEnabled'] ?? 1) !== 1 && $pendingCandidates === []) {
+            $pdo->rollBack();
+            jsonResponse([
+                'error' => 'Questo territorio e disabilitato per la registrazione di nuovi match.',
+            ], 422);
+        }
 
         $mirroredCandidate = null;
 
@@ -1998,6 +2155,57 @@ function efigaDocumentPath(): string
     return dirname(__DIR__) . '/resources/efiga.pdf';
 }
 
+function territoryMatchSubmissionColumnAvailable(PDO $pdo): bool
+{
+    return columnExists($pdo, 'territories', 'is_match_submission_enabled');
+}
+
+function campaignMapDirectoryPath(): string
+{
+    return dirname(__DIR__) . '/resources';
+}
+
+function campaignMapUploadPath(string $extension): string
+{
+    return campaignMapDirectoryPath() . '/campaign-map.' . $extension;
+}
+
+function campaignMapImagePath(): ?string
+{
+    foreach (supportedCampaignMapExtensions() as $extension) {
+        $path = campaignMapUploadPath($extension);
+
+        if (is_file($path)) {
+            return $path;
+        }
+    }
+
+    return null;
+}
+
+function supportedCampaignMapExtensions(): array
+{
+    return ['jpg', 'jpeg', 'png', 'webp'];
+}
+
+function normalizeCampaignMapExtension(string $extension): ?string
+{
+    $normalized = mb_strtolower(trim($extension));
+
+    return in_array($normalized, supportedCampaignMapExtensions(), true) ? $normalized : null;
+}
+
+function deleteCampaignMapImages(): void
+{
+    foreach (supportedCampaignMapExtensions() as $extension) {
+        $path = campaignMapUploadPath($extension);
+
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+}
+
 function uploadErrorMessage(int $errorCode): string
 {
     return match ($errorCode) {
@@ -2038,6 +2246,24 @@ function isPdfFile(string $filePath): bool
     fclose($handle);
 
     return $signature === '%PDF';
+}
+
+function isSupportedImageFile(string $filePath, string $extension): bool
+{
+    $imageInfo = @getimagesize($filePath);
+
+    if (! is_array($imageInfo)) {
+        return false;
+    }
+
+    $mimeType = (string) ($imageInfo['mime'] ?? '');
+
+    return match ($extension) {
+        'jpg', 'jpeg' => $mimeType === 'image/jpeg',
+        'png' => $mimeType === 'image/png',
+        'webp' => $mimeType === 'image/webp',
+        default => false,
+    };
 }
 
 function uuidV4(): string

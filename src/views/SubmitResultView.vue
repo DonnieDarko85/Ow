@@ -26,8 +26,8 @@
         <label class="submit-territory">
           <span>Territorio</span>
           <select v-model="form.territoryId" required>
-            <option value="" disabled>Seleziona un territorio</option>
-            <option v-for="territory in sortedTerritories" :key="territory.id" :value="territory.id">
+            <option value="" disabled>Seleziona un territorio abilitato</option>
+            <option v-for="territory in availableTerritories" :key="territory.id" :value="territory.id">
               {{ territory.name }}
             </option>
           </select>
@@ -88,7 +88,7 @@
           <textarea v-model="form.note" rows="4" placeholder="Dettagli extra, missione, scenario, anomalia da segnalare..." />
         </label>
 
-        <button class="primary-button submit-button" :disabled="isSubmitting" type="submit">
+        <button class="primary-button submit-button" :disabled="isSubmitting || !canSubmitNewMatch" type="submit">
           {{ isSubmitting ? 'Invio in corso...' : 'Invia risultato' }}
         </button>
         <p v-if="loadError" class="field-error full-span">{{ loadError }}</p>
@@ -143,6 +143,9 @@ const sortedArmies = computed(() =>
 const sortedTerritories = computed(() =>
   [...territories.value].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
 );
+const availableTerritories = computed(() =>
+  sortedTerritories.value.filter((territory) => territory.isMatchSubmissionEnabled),
+);
 
 const selectedArmy = computed(() =>
   armies.value.find((army) => army.id === form.ownArmyId) ?? null,
@@ -177,8 +180,9 @@ const filteredOpponents = computed(() => {
 });
 
 const hasLookupData = computed(() =>
-  sortedArmies.value.length > 0 && territories.value.length > 0 && availableOpponents.value.length > 0,
+  sortedArmies.value.length > 0 && availableTerritories.value.length > 0 && availableOpponents.value.length > 0,
 );
+const canSubmitNewMatch = computed(() => hasLookupData.value && form.territoryId !== '');
 
 watch(
   () => user.value?.preferredArmyId,
@@ -186,6 +190,18 @@ watch(
     if (preferredArmyId) {
       form.ownArmyId = preferredArmyId;
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  availableTerritories,
+  (nextTerritories) => {
+    if (nextTerritories.some((territory) => territory.id === form.territoryId)) {
+      return;
+    }
+
+    form.territoryId = '';
   },
   { immediate: true },
 );
@@ -248,6 +264,8 @@ onMounted(async () => {
 
   if (missingLookupParts.length > 0) {
     loadError.value = `Non sono riuscito a caricare: ${missingLookupParts.join(', ')}.`;
+  } else if (availableTerritories.value.length === 0) {
+    loadError.value = 'Al momento non ci sono territori abilitati alla registrazione di nuovi match.';
   } else {
     loadError.value = '';
 

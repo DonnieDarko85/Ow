@@ -32,7 +32,7 @@ return [
     ],
     'app' => [
         'name' => 'Sun-Tzu Secrets Play Portal',
-        'version' => '1.0.2',
+        'version' => '1.0.3',
         'organization_name' => 'Sun-Tzu Secrets',
         'legal_note' => 'Note legali, privacy e cookie sono in preparazione. Contenuti informativi e riferimenti ufficiali verranno pubblicati a breve.',
         'contact_email' => 'placeholder contatti in aggiornamento',

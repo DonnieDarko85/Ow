@@ -148,6 +148,44 @@
       <section class="admin-map-panel">
         <div class="admin-map-panel-head">
           <div>
+            <p class="eyebrow">Disponibilita</p>
+            <h4>Nuovi match per territorio</h4>
+          </div>
+        </div>
+
+        <div class="admin-map-assignment-list">
+          <article
+            v-for="territory in sortedTerritories"
+            :key="territory.id"
+            class="admin-map-assignment-row"
+          >
+            <div>
+              <strong>{{ territory.name }}</strong>
+              <p class="muted-copy">
+                {{ territory.isMatchSubmissionEnabled ? 'Nuovi match consentiti' : 'Nuovi match disabilitati' }}
+              </p>
+            </div>
+            <button
+              class="secondary-button admin-inline-button"
+              type="button"
+              :disabled="updatingTerritoryId === territory.id"
+              @click="toggleTerritoryMatchAvailability(territory)"
+            >
+              {{
+                updatingTerritoryId === territory.id
+                  ? 'Salvataggio...'
+                  : territory.isMatchSubmissionEnabled
+                    ? 'Disabilita'
+                    : 'Abilita'
+              }}
+            </button>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-map-panel">
+        <div class="admin-map-panel-head">
+          <div>
             <p class="eyebrow">Persistenza</p>
             <h4>Export / import JSON</h4>
           </div>
@@ -175,7 +213,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import campaignMap from '@/assets/maps/campaign-map.jpeg';
+import { storeToRefs } from 'pinia';
+import fallbackCampaignMap from '@/assets/maps/campaign-map.jpeg';
 import { api } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 import type { Territory } from '@/types';
@@ -196,6 +235,7 @@ interface Props {
 
 const props = defineProps<Props>();
 const appStore = useAppStore();
+const { config } = storeToRefs(appStore);
 
 const selectedTerritoryId = ref('');
 const hoveredHexId = ref('');
@@ -207,6 +247,7 @@ const creationMessage = ref('');
 const isCreatingTerritory = ref(false);
 const isSavingMap = ref(false);
 const isLoadingMap = ref(false);
+const updatingTerritoryId = ref('');
 const territoryForm = ref({
   name: '',
   description: '',
@@ -216,6 +257,9 @@ const territoryForm = ref({
 
 const sortedTerritories = computed(() =>
   [...props.territories].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
+);
+const campaignMap = computed(() =>
+  config.value?.campaignMapAvailable ? config.value.campaignMapUrl : fallbackCampaignMap,
 );
 
 const hexes = computed<HexCell[]>(() => buildHexGrid());
@@ -439,6 +483,25 @@ async function createTerritory() {
     creationMessage.value = error instanceof Error ? error.message : 'Creazione territorio non riuscita.';
   } finally {
     isCreatingTerritory.value = false;
+  }
+}
+
+async function toggleTerritoryMatchAvailability(territory: Territory) {
+  updatingTerritoryId.value = territory.id;
+
+  try {
+    const nextValue = !territory.isMatchSubmissionEnabled;
+    const result = await api.updateAdminTerritoryMatchAvailability(territory.id, nextValue);
+    appStore.territories = appStore.territories.map((entry) =>
+      entry.id === territory.id
+        ? { ...entry, isMatchSubmissionEnabled: nextValue }
+        : entry,
+    );
+    message.value = result.message;
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Aggiornamento territorio non riuscito.';
+  } finally {
+    updatingTerritoryId.value = '';
   }
 }
 </script>

@@ -1832,6 +1832,10 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .map-territory-banner {
+    display: none;
+  }
+
   .map-territory-pie {
     width: 90px;
     height: 90px;
